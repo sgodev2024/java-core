@@ -1,7 +1,3 @@
-node_modules
-dist
-.vinext
-.wrangler
-.git
-site-package.tgz
-npm-debug.log*
+*
+!dist/standalone/**
+!dist/client/**
