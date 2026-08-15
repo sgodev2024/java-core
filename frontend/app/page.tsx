@@ -271,12 +271,12 @@ function Activity({ items }: { items: ActivityItem[] }) {
   );
 }
 
-function Files({ items, storageGb }: { items: FileItem[]; storageGb: number }) {
+function Files({ items, storageGb, onUpload, onDownload }: { items: FileItem[]; storageGb: number; onUpload:(file:File)=>Promise<void>; onDownload:(item:FileItem)=>Promise<void> }) {
   return (
     <>
-      <PageTitle eyebrow="Object storage" title="Tệp tin" description="Quản lý metadata, trạng thái quét, phân loại dữ liệu và liên kết resource." action={<button className="primary-button">↑ Tải tệp lên</button>} />
+      <PageTitle eyebrow="Object storage" title="Tệp tin" description="Quản lý metadata, checksum, phân loại và nội dung file theo tenant." action={<label className="primary-button">↑ Tải tệp lên<input hidden type="file" onChange={e=>e.target.files?.[0]&&onUpload(e.target.files[0])}/></label>} />
       <section className="storage-card"><div><span className="storage-icon">▱</span><div><strong>{storageGb.toFixed(2)} GB</strong><p>Dung lượng metadata file đã ghi nhận</p></div></div><div className="storage-progress"><i /></div><div className="storage-stats"><span>{items.length.toLocaleString("vi-VN")} tệp</span><span>{items.filter(x=>x.status === "QUARANTINE").length} quarantine</span><span>Dữ liệu từ PostgreSQL</span></div></section>
-      <section className="panel table-panel"><div className="table-tools"><div className="search-field wide">⌕ <input aria-label="Tìm tệp" placeholder="Tìm tên tệp, media type..." /></div><button className="filter-chip active">Tất cả</button><button className="filter-chip">Cần xử lý</button></div><div className="file-table"><div className="file-row file-head"><span>Tệp</span><span>Kích thước</span><span>Phân loại</span><span>Trạng thái</span><span>Cập nhật</span></div>{items.map((f) => <button className="file-row" key={f.id}><span><b>▤</b><span><strong>{f.name}</strong><small>{f.mediaType}</small></span></span><span>{(f.sizeBytes/1024/1024).toFixed(2)} MB</span><span>{f.classification}</span><span><em className={`state ${f.status.toLowerCase()}`}>{f.status}</em></span><span>{new Date(f.updatedAt).toLocaleString("vi-VN")}　→</span></button>)}</div></section>
+      <section className="panel table-panel"><div className="table-tools"><div className="search-field wide">⌕ <input aria-label="Tìm tệp" placeholder="Tìm tên tệp, media type..." /></div><button className="filter-chip active">Tất cả</button><button className="filter-chip">Cần xử lý</button></div><div className="file-table"><div className="file-row file-head"><span>Tệp</span><span>Kích thước</span><span>Phân loại</span><span>Trạng thái</span><span>Cập nhật</span></div>{items.map((f) => <button className="file-row" key={f.id} onClick={()=>onDownload(f)}><span><b>▤</b><span><strong>{f.name}</strong><small>{f.mediaType}</small></span></span><span>{(f.sizeBytes/1024/1024).toFixed(2)} MB</span><span>{f.classification}</span><span><em className={`state ${f.status.toLowerCase()}`}>{f.status}</em></span><span>{new Date(f.updatedAt).toLocaleString("vi-VN")}　↓</span></button>)}</div></section>
     </>
   );
 }
@@ -337,6 +337,8 @@ export default function Home() {
   const mutate = async (path:string,method:string,body?:unknown) => { setOperationError(""); const response=await fetch(`${API_URL}${path}`,{method,headers:{Authorization:`Bearer ${token()}`,"Content-Type":"application/json"},body:body===undefined?undefined:JSON.stringify(body)}); if(!response.ok){const problem=await response.json().catch(()=>({})); const message=problem.detail||"Thao tác thất bại"; setOperationError(message); throw new Error(message);} await refresh(); };
   const changeModuleStatus = (item:ModuleItem) => mutate(`/api/v1/control-plane/modules/${item.id}/status`,"PATCH",{status:item.status === "DISABLED" ? "HEALTHY" : "DISABLED"}).catch(()=>undefined);
   const createRole = () => { const name=window.prompt("Tên vai trò"); if(!name)return; mutate("/api/v1/control-plane/roles","POST",{name,scope:"Toàn deployment"}).catch(()=>undefined); };
+  const uploadFile = async (file:File) => { setOperationError(""); const form=new FormData();form.append("file",file);const response=await fetch(`${API_URL}/api/v1/files?classification=INTERNAL`,{method:"POST",headers:{Authorization:`Bearer ${token()}`},body:form});if(!response.ok){const p=await response.json().catch(()=>({}));setOperationError(p.detail||"Upload thất bại");return;}await refresh(); };
+  const downloadFile = async (item:FileItem) => { const response=await fetch(`${API_URL}/api/v1/files/${item.id}/content`,{headers:{Authorization:`Bearer ${token()}`}});if(!response.ok){const p=await response.json().catch(()=>({}));setOperationError(p.detail||"Nội dung file chưa sẵn sàng");return;}const url=URL.createObjectURL(await response.blob());const a=document.createElement("a");a.href=url;a.download=item.name;a.click();URL.revokeObjectURL(url); };
   const signIn = (token: string, remember: boolean) => {
     (remember ? window.localStorage : window.sessionStorage).setItem("core-access-token", token);
     setApiOnline(true); setAuthenticated(true);
@@ -384,7 +386,7 @@ export default function Home() {
           {data && view === "resources" && <Resources items={data.resources} onChanged={refresh} />}
           {data && view === "access" && <Access items={data.roles} onCreate={createRole} />}
           {data && view === "activity" && <Activity items={data.activities} />}
-          {data && view === "files" && <Files items={data.files} storageGb={data.summary.storageGb} />}
+          {data && view === "files" && <Files items={data.files} storageGb={data.summary.storageGb} onUpload={uploadFile} onDownload={downloadFile} />}
           {data && view === "settings" && <Settings values={data.settings} onSave={(items)=>mutate("/api/v1/control-plane/settings","PUT",items)} />}
         </main>
       </div>

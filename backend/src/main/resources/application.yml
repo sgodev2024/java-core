@@ -25,3 +25,4 @@ springdoc.swagger-ui.path: /swagger-ui
 core:
   bootstrap-admin-password: ${CORE_BOOTSTRAP_ADMIN_PASSWORD:}
   bootstrap-mfa-code: ${CORE_BOOTSTRAP_MFA_CODE:}
+  file-storage-root: ${FILE_STORAGE_ROOT:/data/files}
