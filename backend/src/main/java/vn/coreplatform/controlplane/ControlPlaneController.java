@@ -1,25 +1,103 @@
 package vn.coreplatform.controlplane;
 
-import java.time.Instant; import java.util.*; import org.springframework.jdbc.core.JdbcTemplate; import org.springframework.web.bind.annotation.*;
+import static vn.coreplatform.shared.ApiExceptionHandler.ApiProblem;
 
-@RestController @RequestMapping("/api/v1/control-plane")
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
+import java.time.Instant;
+import java.util.*;
+import org.springframework.http.*;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.core.Authentication;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/v1/control-plane")
 public class ControlPlaneController {
-  private final JdbcTemplate jdbc; public ControlPlaneController(JdbcTemplate jdbc){this.jdbc=jdbc;}
-  record Summary(long resources,long modules,long pendingOutbox,long runningJobs,long files,double storageGb,String coreVersion,String environment){}
-  record Module(UUID id,String name,String moduleKey,String version,String status,String description,String metric){}
-  record Resource(UUID id,String name,String storageMode,String ownerModule,long records,String schemaVersion,Instant updatedAt){}
-  record Activity(UUID id,String kind,String name,String metadata,String status,Instant occurredAt){}
-  record Role(UUID id,String name,int users,int policies,String scope){}
-  record FileItem(UUID id,String name,String mediaType,long sizeBytes,String classification,String status,Instant updatedAt){}
-  record Bootstrap(Summary summary,List<Module> modules,List<Resource> resources,List<Activity> activities,List<Role> roles,List<FileItem> files){}
+  private final JdbcTemplate jdbc;
+  public ControlPlaneController(JdbcTemplate jdbc){this.jdbc=jdbc;}
 
-  @GetMapping("/bootstrap") Bootstrap bootstrap(){
-    var summary=jdbc.queryForObject("select (select coalesce(sum(record_count),0) from platform.resource_descriptor) resources,(select count(*) from platform.module) modules,(select count(*) from async.outbox_event where status='PENDING') outbox,(select count(*) from async.job where status='RUNNING') jobs,(select count(*) from files.file_object) files,(select coalesce(sum(size_bytes),0)/1073741824.0 from files.file_object) storage_gb",(r,n)->new Summary(r.getLong("resources"),r.getLong("modules"),r.getLong("outbox"),r.getLong("jobs"),r.getLong("files"),r.getDouble("storage_gb"),"1.0.0-rc.4","core-production-vn"));
-    var modules=jdbc.query("select * from platform.module order by sort_order",(r,n)->new Module(r.getObject("id",UUID.class),r.getString("name"),r.getString("module_key"),r.getString("version"),r.getString("status"),r.getString("description"),r.getString("metric")));
-    var resources=jdbc.query("select * from platform.resource_descriptor order by updated_at desc",(r,n)->new Resource(r.getObject("id",UUID.class),r.getString("name"),r.getString("storage_mode"),r.getString("owner_module"),r.getLong("record_count"),r.getString("schema_version"),r.getTimestamp("updated_at").toInstant()));
-    var activities=jdbc.query("select * from platform.activity order by occurred_at desc limit 20",(r,n)->new Activity(r.getObject("id",UUID.class),r.getString("kind"),r.getString("name"),r.getString("metadata"),r.getString("status"),r.getTimestamp("occurred_at").toInstant()));
-    var roles=jdbc.query("select * from identity.role_summary order by name",(r,n)->new Role(r.getObject("id",UUID.class),r.getString("name"),r.getInt("user_count"),r.getInt("policy_count"),r.getString("scope")));
-    var files=jdbc.query("select * from files.file_object order by updated_at desc",(r,n)->new FileItem(r.getObject("id",UUID.class),r.getString("name"),r.getString("media_type"),r.getLong("size_bytes"),r.getString("classification"),r.getString("status"),r.getTimestamp("updated_at").toInstant()));
-    return new Bootstrap(summary,modules,resources,activities,roles,files);
+  public record Summary(long resources,long modules,long pendingOutbox,long runningJobs,long files,double storageGb,String coreVersion,String environment){}
+  public record Module(UUID id,String name,String moduleKey,String version,String status,String description,String metric){}
+  public record Resource(UUID id,String name,String storageMode,String ownerModule,long records,String schemaVersion,Instant updatedAt){}
+  public record Activity(UUID id,String kind,String name,String metadata,String status,Instant occurredAt){}
+  public record Role(UUID id,String name,int users,int policies,String scope){}
+  public record FileItem(UUID id,String name,String mediaType,long sizeBytes,String classification,String status,Instant updatedAt){}
+  public record AuditItem(UUID id,String actorEmail,String action,String resourceType,String resourceId,String result,UUID correlationId,Instant occurredAt){}
+  public record Bootstrap(Summary summary,List<Module> modules,List<Resource> resources,List<Activity> activities,List<Role> roles,List<FileItem> files,List<AuditItem> audit,Map<String,String> settings){}
+  public record ModuleStatus(@Pattern(regexp="HEALTHY|DISABLED|ATTENTION") String status){}
+  public record ResourceCreate(@NotBlank @Size(max=160) String name,@Pattern(regexp="DOMAIN|DYNAMIC") String storageMode,@NotBlank @Size(max=80) String ownerModule,@NotBlank @Size(max=20) String schemaVersion){}
+  public record RoleCreate(@NotBlank @Size(max=100) String name,@Size(max=120) String scope){}
+  public record SettingUpdate(@NotBlank @Size(max=100) String key,@NotBlank @Size(max=500) String value){}
+
+  @GetMapping("/bootstrap")
+  Bootstrap bootstrap(){
+    var summary=jdbc.queryForObject("select (select coalesce(sum(record_count),0) from platform.resource_descriptor) resources,(select count(*) from platform.module) modules,(select count(*) from async.outbox_event where status='PENDING') outbox,(select count(*) from async.job where status='RUNNING') jobs,(select count(*) from files.file_object) files,(select coalesce(sum(size_bytes),0)/1073741824.0 from files.file_object) storage_gb",(r,n)->new Summary(r.getLong("resources"),r.getLong("modules"),r.getLong("outbox"),r.getLong("jobs"),r.getLong("files"),r.getDouble("storage_gb"),"1.0.0","core-production-vn"));
+    return new Bootstrap(summary,modules(),resources(),activities(),roles(),files(),audit(50),settings());
   }
+
+  @GetMapping("/audit") List<AuditItem> audit(@RequestParam(defaultValue="50") int limit){
+    int safe=Math.max(1,Math.min(limit,200));
+    return jdbc.query("select id,actor_email,action,resource_type,resource_id,result,correlation_id,occurred_at from audit.event order by occurred_at desc limit ?",(r,n)->new AuditItem(r.getObject("id",UUID.class),r.getString("actor_email"),r.getString("action"),r.getString("resource_type"),r.getString("resource_id"),r.getString("result"),r.getObject("correlation_id",UUID.class),r.getTimestamp("occurred_at").toInstant()),safe);
+  }
+
+  @PatchMapping("/modules/{id}/status") @Transactional
+  Module updateModule(@PathVariable UUID id,@Valid @RequestBody ModuleStatus request,Authentication auth){
+    requireAdmin(auth); int changed=jdbc.update("update platform.module set status=? where id=?",request.status(),id);
+    if(changed==0) throw new ApiProblem(HttpStatus.NOT_FOUND,"MODULE_NOT_FOUND","Module không tồn tại");
+    audit(auth,"MODULE_STATUS_CHANGED","MODULE",id.toString(),"SUCCESS");
+    return jdbc.queryForObject("select * from platform.module where id=?",(r,n)->module(r),id);
+  }
+
+  @PostMapping("/resources") @ResponseStatus(HttpStatus.CREATED) @Transactional
+  Resource createResource(@Valid @RequestBody ResourceCreate request,Authentication auth){
+    requireAdmin(auth);
+    Integer owner=jdbc.queryForObject("select count(*) from platform.module where module_key=?",Integer.class,request.ownerModule());
+    if(owner==null||owner==0) throw new ApiProblem(HttpStatus.UNPROCESSABLE_ENTITY,"OWNER_MODULE_NOT_FOUND","Owner module không tồn tại");
+    var id=UUID.randomUUID();
+    jdbc.update("insert into platform.resource_descriptor(id,name,storage_mode,owner_module,record_count,schema_version) values(?,?,?,?,0,?)",id,request.name().trim(),request.storageMode(),request.ownerModule(),request.schemaVersion());
+    audit(auth,"RESOURCE_CREATED","RESOURCE",id.toString(),"SUCCESS");
+    return jdbc.queryForObject("select * from platform.resource_descriptor where id=?",(r,n)->resource(r),id);
+  }
+
+  @PostMapping("/roles") @ResponseStatus(HttpStatus.CREATED) @Transactional
+  Role createRole(@Valid @RequestBody RoleCreate request,Authentication auth){
+    requireAdmin(auth); var id=UUID.randomUUID();
+    try{jdbc.update("insert into identity.role_summary(id,name,user_count,policy_count,scope) values(?,?,0,0,?)",id,request.name().trim(),Optional.ofNullable(request.scope()).filter(x->!x.isBlank()).orElse("Toàn deployment"));}
+    catch(Exception e){throw new ApiProblem(HttpStatus.CONFLICT,"ROLE_ALREADY_EXISTS","Tên vai trò đã tồn tại");}
+    audit(auth,"ROLE_CREATED","ROLE",id.toString(),"SUCCESS");
+    return jdbc.queryForObject("select * from identity.role_summary where id=?",(r,n)->role(r),id);
+  }
+
+  @PostMapping("/jobs/{id}/retry") @Transactional
+  Activity retryJob(@PathVariable UUID id,Authentication auth){
+    requireAdmin(auth); int changed=jdbc.update("update async.job set status='PENDING',attempts=attempts+1 where id=? and status in ('FAILED','RETRYING') and attempts<max_attempts",id);
+    if(changed==0) throw new ApiProblem(HttpStatus.CONFLICT,"JOB_NOT_RETRYABLE","Job không tồn tại hoặc không thể retry");
+    var activityId=UUID.randomUUID(); jdbc.update("insert into platform.activity(id,kind,name,metadata,status) select ?, 'JOB',job_type,'manual retry','PENDING' from async.job where id=?",activityId,id);
+    audit(auth,"JOB_RETRIED","JOB",id.toString(),"SUCCESS");
+    return jdbc.queryForObject("select * from platform.activity where id=?",(r,n)->activity(r),activityId);
+  }
+
+  @PutMapping("/settings") @Transactional
+  Map<String,String> updateSettings(@Valid @RequestBody List<SettingUpdate> updates,Authentication auth){
+    requireAdmin(auth);
+    for(var item:updates) jdbc.update("insert into platform.setting(setting_key,setting_value,updated_by) values(?,?,?) on conflict(setting_key) do update set setting_value=excluded.setting_value,updated_by=excluded.updated_by,updated_at=now()",item.key(),item.value(),auth.getName());
+    audit(auth,"SETTINGS_UPDATED","SETTING",null,"SUCCESS"); return settings();
+  }
+
+  private List<Module> modules(){return jdbc.query("select * from platform.module order by sort_order",(r,n)->module(r));}
+  private List<Resource> resources(){return jdbc.query("select * from platform.resource_descriptor order by updated_at desc",(r,n)->resource(r));}
+  private List<Activity> activities(){return jdbc.query("select * from platform.activity order by occurred_at desc limit 50",(r,n)->activity(r));}
+  private List<Role> roles(){return jdbc.query("select * from identity.role_summary order by name",(r,n)->role(r));}
+  private List<FileItem> files(){return jdbc.query("select * from files.file_object order by updated_at desc",(r,n)->new FileItem(r.getObject("id",UUID.class),r.getString("name"),r.getString("media_type"),r.getLong("size_bytes"),r.getString("classification"),r.getString("status"),r.getTimestamp("updated_at").toInstant()));}
+  private Map<String,String> settings(){var result=new LinkedHashMap<String,String>();jdbc.query("select setting_key,setting_value from platform.setting order by setting_key",r->{result.put(r.getString(1),r.getString(2));});return result;}
+  private Module module(java.sql.ResultSet r)throws java.sql.SQLException{return new Module(r.getObject("id",UUID.class),r.getString("name"),r.getString("module_key"),r.getString("version"),r.getString("status"),r.getString("description"),r.getString("metric"));}
+  private Resource resource(java.sql.ResultSet r)throws java.sql.SQLException{return new Resource(r.getObject("id",UUID.class),r.getString("name"),r.getString("storage_mode"),r.getString("owner_module"),r.getLong("record_count"),r.getString("schema_version"),r.getTimestamp("updated_at").toInstant());}
+  private Activity activity(java.sql.ResultSet r)throws java.sql.SQLException{return new Activity(r.getObject("id",UUID.class),r.getString("kind"),r.getString("name"),r.getString("metadata"),r.getString("status"),r.getTimestamp("occurred_at").toInstant());}
+  private Role role(java.sql.ResultSet r)throws java.sql.SQLException{return new Role(r.getObject("id",UUID.class),r.getString("name"),r.getInt("user_count"),r.getInt("policy_count"),r.getString("scope"));}
+  private void requireAdmin(Authentication auth){if(auth==null||auth.getAuthorities().stream().noneMatch(a->a.getAuthority().equals("ROLE_PLATFORM_ADMIN")))throw new ApiProblem(HttpStatus.FORBIDDEN,"PERMISSION_DENIED","Yêu cầu quyền Platform Administrator");}
+  private void audit(Authentication auth,String action,String type,String resourceId,String result){jdbc.update("insert into audit.event(id,actor_email,action,resource_type,resource_id,result,occurred_at) values(?,?,?,?,?,?,now())",UUID.randomUUID(),auth.getName(),action,type,resourceId,result);}
 }

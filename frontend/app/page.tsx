@@ -5,6 +5,16 @@ import { useEffect, useMemo, useState } from "react";
 type View = "overview" | "modules" | "resources" | "access" | "activity" | "files" | "settings";
 type AuthStep = "login" | "mfa";
 const API_URL = process.env.NEXT_PUBLIC_CORE_API_URL ?? "https://api.corejava.sgodata.com";
+type ModuleItem = { id: string; name: string; moduleKey: string; version: string; status: string; description: string; metric: string };
+type ResourceItem = { id: string; name: string; storageMode: string; ownerModule: string; records: number; schemaVersion: string; updatedAt: string };
+type ActivityItem = { id: string; kind: string; name: string; metadata: string; status: string; occurredAt: string };
+type RoleItem = { id: string; name: string; users: number; policies: number; scope: string };
+type FileItem = { id: string; name: string; mediaType: string; sizeBytes: number; classification: string; status: string; updatedAt: string };
+type AuditItem = { id: string; actorEmail: string; action: string; resourceType?: string; resourceId?: string; result: string; correlationId: string; occurredAt: string };
+type BootstrapData = {
+  summary: { resources: number; modules: number; pendingOutbox: number; runningJobs: number; files: number; storageGb: number; coreVersion: string; environment: string };
+  modules: ModuleItem[]; resources: ResourceItem[]; activities: ActivityItem[]; roles: RoleItem[]; files: FileItem[]; audit: AuditItem[]; settings: Record<string,string>;
+};
 
 function LoginScreen({ onAuthenticated }: { onAuthenticated: (token: string, remember: boolean) => void }) {
   const [step, setStep] = useState<AuthStep>("login");
@@ -89,39 +99,6 @@ const navItems: Array<{ id: View; label: string; icon: string; badge?: string }>
   { id: "settings", label: "Cấu hình", icon: "⚙" },
 ];
 
-const modules = [
-  { name: "Local Identity", key: "local-identity", version: "1.0.0", status: "Healthy", tone: "teal", detail: "Tài khoản, phiên đăng nhập và MFA", events: "4 contracts" },
-  { name: "Permission", key: "permission", version: "1.0.0", status: "Healthy", tone: "teal", detail: "Policy, vai trò và record scope", events: "6 policies" },
-  { name: "Audit Store", key: "audit-store", version: "1.0.0", status: "Healthy", tone: "teal", detail: "Audit append-only và checkpoint", events: "12.4k records" },
-  { name: "Event Outbox", key: "event-outbox", version: "1.0.0", status: "Attention", tone: "amber", detail: "Outbox, inbox và delivery relay", events: "12 pending" },
-  { name: "Job Queue", key: "job-queue", version: "1.0.0", status: "Healthy", tone: "teal", detail: "Job, scheduler và retry", events: "3 running" },
-  { name: "File Management", key: "file-management", version: "1.0.0", status: "Healthy", tone: "teal", detail: "Upload, scan và object storage", events: "84.2 GB" },
-  { name: "Dynamic Resource", key: "dynamic-resource", version: "1.0.0", status: "Healthy", tone: "teal", detail: "Definition, generic API và history", events: "24 definitions" },
-  { name: "Webhook", key: "webhook", version: "1.0.0", status: "Disabled", tone: "gray", detail: "Delivery tới hệ thống bên ngoài", events: "Optional" },
-];
-
-const resources = [
-  { name: "Approval Request", type: "DOMAIN", module: "sample-domain", records: "1,248", version: "v3", updated: "2 phút trước" },
-  { name: "Customer Preference", type: "DYNAMIC", module: "dynamic-resource", records: "8,492", version: "v2", updated: "8 phút trước" },
-  { name: "Service Account", type: "DOMAIN", module: "local-identity", records: "42", version: "v1", updated: "34 phút trước" },
-  { name: "Notification Template", type: "DYNAMIC", module: "notification", records: "86", version: "v4", updated: "1 giờ trước" },
-  { name: "File Object", type: "DOMAIN", module: "file-management", records: "24,903", version: "v2", updated: "2 giờ trước" },
-];
-
-const activities = [
-  { type: "event", title: "approval-request.approved.v1", meta: "sample-domain · tenant acme-vn", time: "10:42:18", state: "Published" },
-  { type: "job", title: "file.reconcile", meta: "job-01J8... · attempt 1/3", time: "10:41:52", state: "Running" },
-  { type: "event", title: "identity.session-revoked.v1", meta: "local-identity · security", time: "10:39:07", state: "Published" },
-  { type: "job", title: "audit.checkpoint", meta: "job-01J7... · 12,400 events", time: "10:35:11", state: "Succeeded" },
-  { type: "event", title: "webhook.delivery-failed", meta: "endpoint misa-adapter · retry 2/5", time: "10:31:43", state: "Retrying" },
-];
-
-const roles = [
-  { name: "Platform Administrator", users: 3, policies: 12, scope: "Toàn deployment", color: "violet" },
-  { name: "Module Maintainer", users: 8, policies: 7, scope: "Theo module", color: "blue" },
-  { name: "Security Auditor", users: 2, policies: 5, scope: "Chỉ đọc + export", color: "amber" },
-  { name: "Application User", users: 184, policies: 9, scope: "Theo organization", color: "teal" },
-];
 
 function StatusDot({ tone = "teal" }: { tone?: string }) {
   return <span className={`status-dot ${tone}`} aria-hidden="true" />;
@@ -140,7 +117,8 @@ function PageTitle({ eyebrow, title, description, action }: { eyebrow: string; t
   );
 }
 
-function Overview({ onNavigate }: { onNavigate: (view: View) => void }) {
+function Overview({ onNavigate, data }: { onNavigate: (view: View) => void; data: BootstrapData }) {
+  const { summary, activities } = data;
   return (
     <>
       <PageTitle
@@ -162,15 +140,15 @@ function Overview({ onNavigate }: { onNavigate: (view: View) => void }) {
       <section className="metric-grid" aria-label="Chỉ số chính">
         <article className="metric-card">
           <div className="metric-icon blue">◇</div><span className="metric-label">Resource records</span>
-          <strong className="metric-value">34,771</strong><span className="metric-trend positive">↑ 8.4%</span><small>so với 30 ngày trước</small>
+          <strong className="metric-value">{summary.resources.toLocaleString("vi-VN")}</strong><span className="metric-trend positive">Live</span><small>dữ liệu từ PostgreSQL</small>
         </article>
         <article className="metric-card">
           <div className="metric-icon violet">◫</div><span className="metric-label">Modules hoạt động</span>
-          <strong className="metric-value">7 <em>/ 8</em></strong><span className="metric-trend neutral">Ổn định</span><small>1 module đang tắt</small>
+          <strong className="metric-value">{data.modules.filter(x => x.status !== "DISABLED").length} <em>/ {summary.modules}</em></strong><span className="metric-trend neutral">Đã đăng ký</span><small>module runtime</small>
         </article>
         <article className="metric-card">
           <div className="metric-icon amber">↯</div><span className="metric-label">Outbox đang chờ</span>
-          <strong className="metric-value">12</strong><span className="metric-trend warning">+5 mới</span><small>cũ nhất 48 giây</small>
+          <strong className="metric-value">{summary.pendingOutbox}</strong><span className="metric-trend warning">Pending</span><small>outbox chờ xử lý</small>
         </article>
         <article className="metric-card">
           <div className="metric-icon teal">◷</div><span className="metric-label">API latency p95</span>
@@ -184,10 +162,10 @@ function Overview({ onNavigate }: { onNavigate: (view: View) => void }) {
           <div className="activity-list">
             {activities.slice(0, 4).map((item) => (
               <div className="activity-row" key={item.title}>
-                <div className={`activity-icon ${item.type}`}>{item.type === "event" ? "↯" : "◷"}</div>
-                <div className="activity-main"><strong>{item.title}</strong><span>{item.meta}</span></div>
-                <span className={`state ${item.state.toLowerCase()}`}>{item.state}</span>
-                <time>{item.time}</time>
+                <div className={`activity-icon ${item.kind.toLowerCase()}`}>{item.kind === "EVENT" ? "↯" : "◷"}</div>
+                <div className="activity-main"><strong>{item.name}</strong><span>{item.metadata}</span></div>
+                <span className={`state ${item.status.toLowerCase()}`}>{item.status}</span>
+                <time>{new Date(item.occurredAt).toLocaleTimeString("vi-VN")}</time>
               </div>
             ))}
           </div>
@@ -212,35 +190,35 @@ function Overview({ onNavigate }: { onNavigate: (view: View) => void }) {
   );
 }
 
-function Modules() {
+function Modules({ items, onStatus }: { items: ModuleItem[]; onStatus: (item: ModuleItem) => void }) {
   return (
     <>
       <PageTitle eyebrow="Runtime composition" title="Modules" description="Theo dõi capability, phiên bản và trạng thái của các module đã đóng gói trong deployment." action={<button className="secondary-button">Kiểm tra tương thích</button>} />
       <div className="filter-row"><div className="search-field">⌕ <input aria-label="Tìm module" placeholder="Tìm theo tên hoặc capability..." /></div><button className="filter-chip active">Tất cả 8</button><button className="filter-chip">Đang bật 7</button><button className="filter-chip">Cần chú ý 1</button></div>
       <section className="module-grid">
-        {modules.map((item) => <article className="module-card" key={item.key}>
-          <div className="module-top"><div className="module-symbol">{item.name.slice(0, 2).toUpperCase()}</div><span className={`state ${item.tone}`}>{item.status}</span></div>
-          <h3>{item.name}</h3><code>{item.key}</code><p>{item.detail}</p>
-          <div className="module-meta"><span>v{item.version}</span><span>{item.events}</span></div>
-          <button className="card-action">Mở chi tiết <span>→</span></button>
+        {items.map((item) => <article className="module-card" key={item.id}>
+          <div className="module-top"><div className="module-symbol">{item.name.slice(0, 2).toUpperCase()}</div><span className={`state ${item.status === "HEALTHY" ? "teal" : item.status === "ATTENTION" ? "amber" : "gray"}`}>{item.status}</span></div>
+          <h3>{item.name}</h3><code>{item.moduleKey}</code><p>{item.description}</p>
+          <div className="module-meta"><span>v{item.version}</span><span>{item.metric}</span></div>
+          <button className="card-action" onClick={() => onStatus(item)}>{item.status === "DISABLED" ? "Bật module" : "Tắt module"} <span>→</span></button>
         </article>)}
       </section>
     </>
   );
 }
 
-function Resources() {
+function Resources({ items, onCreate }: { items: ResourceItem[]; onCreate: () => void }) {
   const [query, setQuery] = useState("");
-  const filtered = resources.filter((r) => `${r.name} ${r.module}`.toLowerCase().includes(query.toLowerCase()));
+  const filtered = items.filter((r) => `${r.name} ${r.ownerModule}`.toLowerCase().includes(query.toLowerCase()));
   return (
     <>
-      <PageTitle eyebrow="Three-Plane Registry" title="Resources" description="Domain aggregate và Dynamic Resource cùng đăng ký capability nhưng giữ persistence độc lập." action={<button className="primary-button">＋ Tạo definition</button>} />
+      <PageTitle eyebrow="Three-Plane Registry" title="Resources" description="Domain aggregate và Dynamic Resource cùng đăng ký capability nhưng giữ persistence độc lập." action={<button className="primary-button" onClick={onCreate}>＋ Tạo definition</button>} />
       <section className="panel table-panel">
         <div className="table-tools"><div className="search-field wide">⌕ <input value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Tìm resource" placeholder="Tìm resource, module..." /></div><button className="filter-chip active">Tất cả</button><button className="filter-chip">Domain</button><button className="filter-chip">Dynamic</button></div>
         <div className="data-table" role="table" aria-label="Danh sách resources">
           <div className="table-row table-head" role="row"><span>Tên resource</span><span>Storage mode</span><span>Owner module</span><span>Records</span><span>Schema</span><span>Cập nhật</span></div>
           {filtered.map((item) => <button className="table-row" role="row" key={item.name}>
-            <span><b className="resource-glyph">◇</b><strong>{item.name}</strong></span><span><em className={`type-pill ${item.type.toLowerCase()}`}>{item.type}</em></span><span><code>{item.module}</code></span><span>{item.records}</span><span>{item.version}</span><span>{item.updated} <b>→</b></span>
+            <span><b className="resource-glyph">◇</b><strong>{item.name}</strong></span><span><em className={`type-pill ${item.storageMode.toLowerCase()}`}>{item.storageMode}</em></span><span><code>{item.ownerModule}</code></span><span>{item.records.toLocaleString("vi-VN")}</span><span>{item.schemaVersion}</span><span>{new Date(item.updatedAt).toLocaleString("vi-VN")} <b>→</b></span>
           </button>)}
         </div>
       </section>
@@ -248,48 +226,46 @@ function Resources() {
   );
 }
 
-function Access() {
+function Access({ items, onCreate }: { items: RoleItem[]; onCreate: () => void }) {
   return (
     <>
-      <PageTitle eyebrow="Identity & authorization" title="Truy cập" description="Quản lý vai trò, policy và phạm vi truy cập. Mọi quyết định không xác định đều bị từ chối." action={<button className="primary-button">＋ Tạo vai trò</button>} />
+      <PageTitle eyebrow="Identity & authorization" title="Truy cập" description="Quản lý vai trò, policy và phạm vi truy cập. Mọi quyết định không xác định đều bị từ chối." action={<button className="primary-button" onClick={onCreate}>＋ Tạo vai trò</button>} />
       <section className="access-summary"><div><span>Người dùng hoạt động</span><strong>197</strong><small>+12 trong 30 ngày</small></div><div><span>Vai trò</span><strong>14</strong><small>4 vai trò hệ thống</small></div><div><span>Policies</span><strong>33</strong><small>100% đã biên dịch</small></div><div><span>Yêu cầu bị từ chối</span><strong>28</strong><small>24 giờ gần nhất</small></div></section>
-      <div className="role-grid">{roles.map((role) => <article className="panel role-card" key={role.name}><div className={`role-badge ${role.color}`}>{role.name.split(" ").map(x => x[0]).join("").slice(0,2)}</div><div className="role-copy"><h3>{role.name}</h3><p>{role.scope}</p></div><button aria-label={`Mở ${role.name}`}>•••</button><dl><div><dt>Người dùng</dt><dd>{role.users}</dd></div><div><dt>Policies</dt><dd>{role.policies}</dd></div></dl></article>)}</div>
+      <div className="role-grid">{items.map((role, index) => <article className="panel role-card" key={role.id}><div className={`role-badge ${["violet","blue","amber","teal"][index%4]}`}>{role.name.split(" ").map(x => x[0]).join("").slice(0,2)}</div><div className="role-copy"><h3>{role.name}</h3><p>{role.scope}</p></div><button aria-label={`Mở ${role.name}`}>•••</button><dl><div><dt>Người dùng</dt><dd>{role.users}</dd></div><div><dt>Policies</dt><dd>{role.policies}</dd></div></dl></article>)}</div>
       <section className="panel policy-banner"><div className="policy-icon">✓</div><div><h3>Permission engine đang ở chế độ fail-closed</h3><p>Policy không tồn tại hoặc evaluation lỗi sẽ trả về Deny. Revision hiện tại: <code>perm-r1842</code></p></div><button className="secondary-button">Mở Policy Explorer</button></section>
     </>
   );
 }
 
-function Activity() {
+function Activity({ items }: { items: ActivityItem[] }) {
   return (
     <>
       <PageTitle eyebrow="Durable processing" title="Events & Jobs" description="Theo dõi outbox, consumer, background jobs, retry và dead-letter flow." action={<button className="secondary-button">↻ Làm mới</button>} />
       <section className="queue-grid"><div className="queue-card"><span>Outbox pending</span><strong>12</strong><div className="mini-bar"><i style={{width:"22%"}} /></div><small>Cũ nhất 48 giây</small></div><div className="queue-card"><span>Jobs running</span><strong>3</strong><div className="mini-bar blue"><i style={{width:"38%"}} /></div><small>7 workers sẵn sàng</small></div><div className="queue-card"><span>Retrying</span><strong>2</strong><div className="mini-bar amber"><i style={{width:"14%"}} /></div><small>Không có dead job</small></div><div className="queue-card"><span>Consumer lag</span><strong>0.8s</strong><div className="mini-bar violet"><i style={{width:"11%"}} /></div><small>Trong ngưỡng SLO</small></div></section>
-      <section className="panel timeline-panel"><div className="panel-header"><div><h2>Live activity stream</h2><p>At-least-once delivery · idempotent consumers</p></div><span className="live-pill"><StatusDot /> Đang cập nhật</span></div>{activities.map((item) => <div className="activity-row expanded" key={item.title}><div className={`activity-icon ${item.type}`}>{item.type === "event" ? "↯" : "◷"}</div><div className="activity-main"><strong>{item.title}</strong><span>{item.meta}</span></div><span className={`state ${item.state.toLowerCase()}`}>{item.state}</span><time>{item.time}</time><button>Chi tiết</button></div>)}</section>
+      <section className="panel timeline-panel"><div className="panel-header"><div><h2>Live activity stream</h2><p>At-least-once delivery · idempotent consumers</p></div><span className="live-pill"><StatusDot /> Dữ liệu thật</span></div>{items.map((item) => <div className="activity-row expanded" key={item.id}><div className={`activity-icon ${item.kind.toLowerCase()}`}>{item.kind === "EVENT" ? "↯" : "◷"}</div><div className="activity-main"><strong>{item.name}</strong><span>{item.metadata}</span></div><span className={`state ${item.status.toLowerCase()}`}>{item.status}</span><time>{new Date(item.occurredAt).toLocaleString("vi-VN")}</time><button>Chi tiết</button></div>)}</section>
     </>
   );
 }
 
-function Files() {
-  const fileRows = [
-    ["architecture-standard-v1.1.pdf", "application/pdf", "2.4 MB", "Internal", "Active", "Hôm nay, 09:24"],
-    ["customer-import-2026-08.csv", "text/csv", "18.7 MB", "Confidential", "Active", "Hôm qua, 16:08"],
-    ["audit-checkpoint-20260814.sig", "application/octet-stream", "4 KB", "Restricted", "Active", "Hôm qua, 00:05"],
-    ["module-manifest.yaml", "text/yaml", "12 KB", "Internal", "Quarantine", "12/08/2026"],
-  ];
+function Files({ items, storageGb }: { items: FileItem[]; storageGb: number }) {
   return (
     <>
       <PageTitle eyebrow="Object storage" title="Tệp tin" description="Quản lý metadata, trạng thái quét, phân loại dữ liệu và liên kết resource." action={<button className="primary-button">↑ Tải tệp lên</button>} />
-      <section className="storage-card"><div><span className="storage-icon">▱</span><div><strong>84.2 GB <em>/ 250 GB</em></strong><p>Dung lượng object storage đã sử dụng</p></div></div><div className="storage-progress"><i /></div><div className="storage-stats"><span>24,903 tệp</span><span>12 đang staging</span><span>1 quarantine</span><span>Checkpoint 4 phút trước</span></div></section>
-      <section className="panel table-panel"><div className="table-tools"><div className="search-field wide">⌕ <input aria-label="Tìm tệp" placeholder="Tìm tên tệp, media type..." /></div><button className="filter-chip active">Tất cả</button><button className="filter-chip">Cần xử lý</button></div><div className="file-table"><div className="file-row file-head"><span>Tệp</span><span>Kích thước</span><span>Phân loại</span><span>Trạng thái</span><span>Cập nhật</span></div>{fileRows.map((f) => <button className="file-row" key={f[0]}><span><b>▤</b><span><strong>{f[0]}</strong><small>{f[1]}</small></span></span><span>{f[2]}</span><span>{f[3]}</span><span><em className={`state ${f[4].toLowerCase()}`}>{f[4]}</em></span><span>{f[5]}　→</span></button>)}</div></section>
+      <section className="storage-card"><div><span className="storage-icon">▱</span><div><strong>{storageGb.toFixed(2)} GB</strong><p>Dung lượng metadata file đã ghi nhận</p></div></div><div className="storage-progress"><i /></div><div className="storage-stats"><span>{items.length.toLocaleString("vi-VN")} tệp</span><span>{items.filter(x=>x.status === "QUARANTINE").length} quarantine</span><span>Dữ liệu từ PostgreSQL</span></div></section>
+      <section className="panel table-panel"><div className="table-tools"><div className="search-field wide">⌕ <input aria-label="Tìm tệp" placeholder="Tìm tên tệp, media type..." /></div><button className="filter-chip active">Tất cả</button><button className="filter-chip">Cần xử lý</button></div><div className="file-table"><div className="file-row file-head"><span>Tệp</span><span>Kích thước</span><span>Phân loại</span><span>Trạng thái</span><span>Cập nhật</span></div>{items.map((f) => <button className="file-row" key={f.id}><span><b>▤</b><span><strong>{f.name}</strong><small>{f.mediaType}</small></span></span><span>{(f.sizeBytes/1024/1024).toFixed(2)} MB</span><span>{f.classification}</span><span><em className={`state ${f.status.toLowerCase()}`}>{f.status}</em></span><span>{new Date(f.updatedAt).toLocaleString("vi-VN")}　→</span></button>)}</div></section>
     </>
   );
 }
 
-function Settings() {
+function Settings({ values, onSave }: { values: Record<string,string>; onSave: (items: Array<{key:string;value:string}>) => Promise<void> }) {
+  const [name,setName]=useState(values["environment.name"] ?? "core-production-vn");
+  const [tier,setTier]=useState(values["environment.tier"] ?? "standard");
+  const [region,setRegion]=useState(values["environment.region"] ?? "Ho Chi Minh City");
+  const [url,setUrl]=useState(values["environment.publicUrl"] ?? "https://corejava.sgodata.com");
   return (
     <>
-      <PageTitle eyebrow="Deployment configuration" title="Cấu hình" description="Thông tin môi trường và các chính sách vận hành đang có hiệu lực." action={<button className="primary-button">Lưu thay đổi</button>} />
-      <div className="settings-layout"><aside className="settings-nav"><button className="active">Tổng quát</button><button>Bảo mật</button><button>Tenant</button><button>Retention</button><button>Thông báo</button><button>Integrations</button></aside><section className="panel settings-form"><h2>Thông tin deployment</h2><p>Những thay đổi quan trọng sẽ được audit và có thể yêu cầu khởi động lại.</p><label>Tên môi trường<input defaultValue="core-production-vn" /></label><div className="form-grid"><label>Service tier<select defaultValue="standard"><option value="pilot">Pilot</option><option value="standard">Standard</option><option value="critical">Critical</option></select></label><label>Khu vực<input defaultValue="Ho Chi Minh City" /></label></div><label>Public base URL<input defaultValue="https://core.example.vn" /></label><div className="setting-toggle"><div><strong>Chế độ bảo trì</strong><span>Chặn public write và tạm dừng worker/outbox relay.</span></div><button role="switch" aria-checked="false" className="toggle"><i /></button></div><div className="setting-toggle"><div><strong>Buộc MFA cho quản trị viên</strong><span>Đang áp dụng cho tất cả tài khoản có quyền quản trị.</span></div><button role="switch" aria-checked="true" className="toggle on"><i /></button></div></section></div>
+      <PageTitle eyebrow="Deployment configuration" title="Cấu hình" description="Thông tin môi trường và các chính sách vận hành đang có hiệu lực." action={<button className="primary-button" onClick={() => onSave([{key:"environment.name",value:name},{key:"environment.tier",value:tier},{key:"environment.region",value:region},{key:"environment.publicUrl",value:url}])}>Lưu thay đổi</button>} />
+      <div className="settings-layout"><aside className="settings-nav"><button className="active">Tổng quát</button><button>Bảo mật</button><button>Tenant</button><button>Retention</button><button>Thông báo</button><button>Integrations</button></aside><section className="panel settings-form"><h2>Thông tin deployment</h2><p>Thay đổi được lưu vào PostgreSQL và ghi audit.</p><label>Tên môi trường<input value={name} onChange={e=>setName(e.target.value)} /></label><div className="form-grid"><label>Service tier<select value={tier} onChange={e=>setTier(e.target.value)}><option value="pilot">Pilot</option><option value="standard">Standard</option><option value="critical">Critical</option></select></label><label>Khu vực<input value={region} onChange={e=>setRegion(e.target.value)} /></label></div><label>Public base URL<input value={url} onChange={e=>setUrl(e.target.value)} /></label></section></div>
     </>
   );
 }
@@ -304,6 +280,8 @@ export default function Home() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [apiOnline, setApiOnline] = useState(false);
+  const [data, setData] = useState<BootstrapData | null>(null);
+  const [operationError, setOperationError] = useState("");
 
   useEffect(() => {
     const token = window.localStorage.getItem("core-access-token") || window.sessionStorage.getItem("core-access-token");
@@ -316,7 +294,7 @@ export default function Home() {
   useEffect(() => {
     if (!authenticated) return;
     const token = window.localStorage.getItem("core-access-token") || window.sessionStorage.getItem("core-access-token");
-    fetch(`${API_URL}/api/v1/control-plane/bootstrap`, { headers: { Authorization: `Bearer ${token}` } }).then(r => { if (!r.ok) throw new Error(); return r.json(); }).then(() => setApiOnline(true)).catch(() => setApiOnline(false));
+    fetch(`${API_URL}/api/v1/control-plane/bootstrap`, { headers: { Authorization: `Bearer ${token}` } }).then(r => { if (!r.ok) throw new Error(); return r.json(); }).then((body:BootstrapData) => { setData(body); setApiOnline(true); }).catch(() => setApiOnline(false));
   }, [authenticated]);
 
   useEffect(() => {
@@ -330,6 +308,12 @@ export default function Home() {
 
   const currentLabel = useMemo(() => navItems.find((item) => item.id === view)?.label ?? "Tổng quan", [view]);
   const navigate = (next: View) => { setView(next); setSidebarOpen(false); window.scrollTo({ top: 0, behavior: "smooth" }); };
+  const token = () => window.localStorage.getItem("core-access-token") || window.sessionStorage.getItem("core-access-token") || "";
+  const refresh = async () => { const response=await fetch(`${API_URL}/api/v1/control-plane/bootstrap`,{headers:{Authorization:`Bearer ${token()}`}}); if(!response.ok) throw new Error("Không thể tải dữ liệu"); setData(await response.json()); };
+  const mutate = async (path:string,method:string,body?:unknown) => { setOperationError(""); const response=await fetch(`${API_URL}${path}`,{method,headers:{Authorization:`Bearer ${token()}`,"Content-Type":"application/json"},body:body===undefined?undefined:JSON.stringify(body)}); if(!response.ok){const problem=await response.json().catch(()=>({})); const message=problem.detail||"Thao tác thất bại"; setOperationError(message); throw new Error(message);} await refresh(); };
+  const changeModuleStatus = (item:ModuleItem) => mutate(`/api/v1/control-plane/modules/${item.id}/status`,"PATCH",{status:item.status === "DISABLED" ? "HEALTHY" : "DISABLED"}).catch(()=>undefined);
+  const createResource = () => { const name=window.prompt("Tên resource"); if(!name)return; const ownerModule=window.prompt("Owner module key",data?.modules[0]?.moduleKey||""); if(!ownerModule)return; mutate("/api/v1/control-plane/resources","POST",{name,ownerModule,storageMode:"DYNAMIC",schemaVersion:"v1"}).catch(()=>undefined); };
+  const createRole = () => { const name=window.prompt("Tên vai trò"); if(!name)return; mutate("/api/v1/control-plane/roles","POST",{name,scope:"Toàn deployment"}).catch(()=>undefined); };
   const signIn = (token: string, remember: boolean) => {
     (remember ? window.localStorage : window.sessionStorage).setItem("core-access-token", token);
     setApiOnline(true); setAuthenticated(true);
@@ -370,13 +354,15 @@ export default function Home() {
         </header>
 
         <main>
-          {view === "overview" && <Overview onNavigate={navigate} />}
-          {view === "modules" && <Modules />}
-          {view === "resources" && <Resources />}
-          {view === "access" && <Access />}
-          {view === "activity" && <Activity />}
-          {view === "files" && <Files />}
-          {view === "settings" && <Settings />}
+          {operationError && <p className="auth-error" role="alert">{operationError}</p>}
+          {!data && <div className="auth-loading" aria-label="Đang tải dữ liệu"><span /></div>}
+          {data && view === "overview" && <Overview onNavigate={navigate} data={data} />}
+          {data && view === "modules" && <Modules items={data.modules} onStatus={changeModuleStatus} />}
+          {data && view === "resources" && <Resources items={data.resources} onCreate={createResource} />}
+          {data && view === "access" && <Access items={data.roles} onCreate={createRole} />}
+          {data && view === "activity" && <Activity items={data.activities} />}
+          {data && view === "files" && <Files items={data.files} storageGb={data.summary.storageGb} />}
+          {data && view === "settings" && <Settings values={data.settings} onSave={(items)=>mutate("/api/v1/control-plane/settings","PUT",items)} />}
         </main>
       </div>
 
