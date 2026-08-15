@@ -14,7 +14,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 @Configuration
 public class SecurityConfig {
   @Bean PasswordEncoder passwordEncoder(){ return new BCryptPasswordEncoder(12); }
-  @Bean CorsConfigurationSource corsConfigurationSource(){ var c=new CorsConfiguration(); c.setAllowedOriginPatterns(List.of("http://localhost:*","https://*.chatgpt.site")); c.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS")); c.setAllowedHeaders(List.of("Authorization","Content-Type","X-Correlation-Id")); c.setAllowCredentials(false); var s=new UrlBasedCorsConfigurationSource(); s.registerCorsConfiguration("/**",c); return s; }
+  @Bean CorsConfigurationSource corsConfigurationSource(){ var c=new CorsConfiguration(); c.setAllowedOriginPatterns(List.of("http://localhost:*","https://*.chatgpt.site","https://corejava.sgodata.com")); c.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS")); c.setAllowedHeaders(List.of("Authorization","Content-Type","X-Correlation-Id")); c.setAllowCredentials(false); var s=new UrlBasedCorsConfigurationSource(); s.registerCorsConfiguration("/**",c); return s; }
   @Bean SecurityFilterChain security(HttpSecurity http, TokenFilter tokenFilter) throws Exception { return http.csrf(x->x.disable()).cors(x->{}).sessionManagement(x->x.sessionCreationPolicy(SessionCreationPolicy.STATELESS)).authorizeHttpRequests(x->x.requestMatchers("/api/v1/auth/login","/api/v1/auth/mfa","/actuator/health/**","/v3/api-docs/**","/swagger-ui/**").permitAll().anyRequest().authenticated()).addFilterBefore(tokenFilter, UsernamePasswordAuthenticationFilter.class).build(); }
 
   @Component static class TokenFilter extends OncePerRequestFilter {

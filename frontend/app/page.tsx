@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 type View = "overview" | "modules" | "resources" | "access" | "activity" | "files" | "settings";
 type AuthStep = "login" | "mfa";
-const API_URL = process.env.NEXT_PUBLIC_CORE_API_URL ?? "https://corejava.sgodata.com";
+const API_URL = process.env.NEXT_PUBLIC_CORE_API_URL ?? "https://api.corejava.sgodata.com";
 
 function LoginScreen({ onAuthenticated }: { onAuthenticated: (token: string, remember: boolean) => void }) {
   const [step, setStep] = useState<AuthStep>("login");
