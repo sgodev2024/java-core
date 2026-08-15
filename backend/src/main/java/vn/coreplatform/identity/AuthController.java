@@ -2,12 +2,13 @@ package vn.coreplatform.identity;
 
 import jakarta.validation.Valid; import jakarta.validation.constraints.*; import java.security.SecureRandom; import java.time.*; import java.util.*;
 import org.springframework.http.*; import org.springframework.jdbc.core.JdbcTemplate; import org.springframework.security.core.Authentication; import org.springframework.security.crypto.password.PasswordEncoder; import org.springframework.transaction.annotation.Transactional; import org.springframework.web.bind.annotation.*;
+import org.springframework.beans.factory.annotation.Value;
 import vn.coreplatform.security.SecurityConfig; import vn.coreplatform.shared.ApiExceptionHandler.ApiProblem;
 
 @RestController @RequestMapping("/api/v1/auth")
 public class AuthController {
-  private final JdbcTemplate jdbc; private final PasswordEncoder encoder; private final SecureRandom random=new SecureRandom();
-  public AuthController(JdbcTemplate jdbc,PasswordEncoder encoder){this.jdbc=jdbc;this.encoder=encoder;}
+  private final JdbcTemplate jdbc; private final PasswordEncoder encoder; private final SecureRandom random=new SecureRandom(); private final String bootstrapMfaCode;
+  public AuthController(JdbcTemplate jdbc,PasswordEncoder encoder,@Value("${core.bootstrap-mfa-code:}") String bootstrapMfaCode){this.jdbc=jdbc;this.encoder=encoder;this.bootstrapMfaCode=bootstrapMfaCode;}
   record LoginRequest(@Email @NotBlank String email,@NotBlank @Size(min=8,max=128) String password){}
   record LoginResponse(String challengeId,boolean mfaRequired,String maskedDestination){}
   record MfaRequest(@NotBlank String challengeId,@Pattern(regexp="\\d{6}") String code,boolean remember){}
@@ -25,7 +26,7 @@ public class AuthController {
   @PostMapping("/mfa") @Transactional
   SessionResponse mfa(@Valid @RequestBody MfaRequest input){
     var account=jdbc.query("select a.id,a.email,a.display_name,a.role from identity.mfa_challenge c join identity.account a on a.id=c.account_id where c.id=? and c.used_at is null and c.expires_at>now()",(rs,n)->new UserResponse(rs.getObject("id",UUID.class),rs.getString("email"),rs.getString("display_name"),rs.getString("role")),UUID.fromString(input.challengeId()));
-    if(account.isEmpty()||!"123456".equals(input.code())) throw new ApiProblem(HttpStatus.UNAUTHORIZED,"INVALID_MFA_CODE","Mã xác thực không hợp lệ hoặc đã hết hạn");
+    if(account.isEmpty()||bootstrapMfaCode.isBlank()||!bootstrapMfaCode.equals(input.code())) throw new ApiProblem(HttpStatus.UNAUTHORIZED,"INVALID_MFA_CODE","Mã xác thực không hợp lệ hoặc đã hết hạn");
     jdbc.update("update identity.mfa_challenge set used_at=now() where id=?",UUID.fromString(input.challengeId()));
     var token=newToken(); var expires=Instant.now().plus(input.remember()?Duration.ofDays(7):Duration.ofHours(8)); jdbc.update("insert into identity.session(id,account_id,token_hash,expires_at) values(?,?,?,?)",UUID.randomUUID(),account.getFirst().id(),SecurityConfig.sha256(token),expires);
     audit(account.getFirst().id(),"AUTH_LOGIN","SUCCESS"); return new SessionResponse(token,expires,account.getFirst());

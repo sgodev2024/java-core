@@ -22,3 +22,6 @@ management:
   health.readinessstate.enabled: true
   health.livenessstate.enabled: true
 springdoc.swagger-ui.path: /swagger-ui
+core:
+  bootstrap-admin-password: ${CORE_BOOTSTRAP_ADMIN_PASSWORD:}
+  bootstrap-mfa-code: ${CORE_BOOTSTRAP_MFA_CODE:}
