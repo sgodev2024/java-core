@@ -1,6 +1,6 @@
 package vn.coreplatform.identity;
 
-import jakarta.validation.Valid; import jakarta.validation.constraints.*; import java.security.SecureRandom; import java.time.*; import java.util.*;
+import jakarta.validation.Valid; import jakarta.validation.constraints.*; import java.security.SecureRandom; import java.sql.Timestamp; import java.time.*; import java.util.*;
 import org.springframework.http.*; import org.springframework.jdbc.core.JdbcTemplate; import org.springframework.security.core.Authentication; import org.springframework.security.crypto.password.PasswordEncoder; import org.springframework.transaction.annotation.Transactional; import org.springframework.web.bind.annotation.*;
 import org.springframework.beans.factory.annotation.Value;
 import vn.coreplatform.security.SecurityConfig; import vn.coreplatform.shared.ApiExceptionHandler.ApiProblem;
@@ -28,7 +28,7 @@ public class AuthController {
     var account=jdbc.query("select a.id,a.email,a.display_name,a.role from identity.mfa_challenge c join identity.account a on a.id=c.account_id where c.id=? and c.used_at is null and c.expires_at>now()",(rs,n)->new UserResponse(rs.getObject("id",UUID.class),rs.getString("email"),rs.getString("display_name"),rs.getString("role")),UUID.fromString(input.challengeId()));
     if(account.isEmpty()||bootstrapMfaCode.isBlank()||!bootstrapMfaCode.equals(input.code())) throw new ApiProblem(HttpStatus.UNAUTHORIZED,"INVALID_MFA_CODE","Mã xác thực không hợp lệ hoặc đã hết hạn");
     jdbc.update("update identity.mfa_challenge set used_at=now() where id=?",UUID.fromString(input.challengeId()));
-    var token=newToken(); var expires=Instant.now().plus(input.remember()?Duration.ofDays(7):Duration.ofHours(8)); jdbc.update("insert into identity.session(id,account_id,token_hash,expires_at) values(?,?,?,?)",UUID.randomUUID(),account.getFirst().id(),SecurityConfig.sha256(token),expires);
+    var token=newToken(); var expires=Instant.now().plus(input.remember()?Duration.ofDays(7):Duration.ofHours(8)); jdbc.update("insert into identity.session(id,account_id,token_hash,expires_at) values(?,?,?,?)",UUID.randomUUID(),account.getFirst().id(),SecurityConfig.sha256(token),Timestamp.from(expires));
     audit(account.getFirst().id(),"AUTH_LOGIN","SUCCESS"); return new SessionResponse(token,expires,account.getFirst());
   }
   @GetMapping("/me") UserResponse me(Authentication auth){ return jdbc.queryForObject("select id,email,display_name,role from identity.account where email=?",(rs,n)->new UserResponse(rs.getObject("id",UUID.class),rs.getString("email"),rs.getString("display_name"),rs.getString("role")),auth.getName()); }
