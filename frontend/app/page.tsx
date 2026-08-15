@@ -11,6 +11,7 @@ type ActivityItem = { id: string; kind: string; name: string; metadata: string; 
 type RoleItem = { id: string; name: string; users: number; policies: number; scope: string };
 type FileItem = { id: string; name: string; mediaType: string; sizeBytes: number; classification: string; status: string; updatedAt: string };
 type AuditItem = { id: string; actorEmail: string; action: string; resourceType?: string; resourceId?: string; result: string; correlationId: string; occurredAt: string };
+type DynamicDefinition = { id:string; resourceKey:string; name:string; version:number; schema:{fields:Array<{key:string;type:string;required?:boolean}>}; status:string; updatedAt:string };
 type BootstrapData = {
   summary: { resources: number; modules: number; pendingOutbox: number; runningJobs: number; files: number; storageGb: number; coreVersion: string; environment: string };
   modules: ModuleItem[]; resources: ResourceItem[]; activities: ActivityItem[]; roles: RoleItem[]; files: FileItem[]; audit: AuditItem[]; settings: Record<string,string>;
@@ -207,12 +208,34 @@ function Modules({ items, onStatus }: { items: ModuleItem[]; onStatus: (item: Mo
   );
 }
 
-function Resources({ items, onCreate }: { items: ResourceItem[]; onCreate: () => void }) {
+function DynamicConsole({ onChanged }: { onChanged: () => Promise<void> }) {
+  const [definitions,setDefinitions]=useState<DynamicDefinition[]>([]);const [selected,setSelected]=useState("");const [records,setRecords]=useState<Array<{id:string;data:Record<string,unknown>;version:number;updatedAt:string}>>([]);
+  const [key,setKey]=useState("");const [name,setName]=useState("");const [schema,setSchema]=useState('{"fields":[{"key":"name","type":"string","required":true}]}');const [recordJson,setRecordJson]=useState('{"name":"Bản ghi mới"}');const [message,setMessage]=useState("");
+  const authHeaders=()=>({Authorization:`Bearer ${window.localStorage.getItem("core-access-token")||window.sessionStorage.getItem("core-access-token")||""}`});
+  const loadDefinitions=async()=>{const r=await fetch(`${API_URL}/api/v1/dynamic/definitions`,{headers:authHeaders()});if(!r.ok)throw new Error("Không thể tải definitions");const body=await r.json();setDefinitions(body);if(!selected&&body.length)setSelected(body[0].resourceKey);};
+  const loadRecords=async(resourceKey:string)=>{if(!resourceKey){setRecords([]);return;}const r=await fetch(`${API_URL}/api/v1/dynamic/${resourceKey}/records?page=0&size=50`,{headers:authHeaders()});if(!r.ok)throw new Error("Không thể tải records");setRecords((await r.json()).items);};
+  useEffect(()=>{loadDefinitions().catch(e=>setMessage(e.message));},[]);
+  useEffect(()=>{loadRecords(selected).catch(e=>setMessage(e.message));},[selected]);
+  const createDefinition=async()=>{try{const r=await fetch(`${API_URL}/api/v1/dynamic/definitions`,{method:"POST",headers:{...authHeaders(),"Content-Type":"application/json"},body:JSON.stringify({resourceKey:key,name,schema:JSON.parse(schema)})});if(!r.ok)throw new Error((await r.json()).detail||"Tạo definition thất bại");setKey("");setName("");setMessage("Đã tạo definition");await loadDefinitions();await onChanged();}catch(e){setMessage(e instanceof Error?e.message:"Dữ liệu không hợp lệ");}};
+  const createRecord=async()=>{try{const r=await fetch(`${API_URL}/api/v1/dynamic/${selected}/records`,{method:"POST",headers:{...authHeaders(),"Content-Type":"application/json"},body:JSON.stringify(JSON.parse(recordJson))});if(!r.ok)throw new Error((await r.json()).detail||"Tạo record thất bại");setMessage("Đã tạo record và revision");await loadRecords(selected);await onChanged();}catch(e){setMessage(e instanceof Error?e.message:"JSON không hợp lệ");}};
+  const exportCsv=async()=>{const r=await fetch(`${API_URL}/api/v1/dynamic/${selected}/export.csv`,{headers:authHeaders()});if(!r.ok)return setMessage("Export thất bại");const url=URL.createObjectURL(await r.blob());const a=document.createElement("a");a.href=url;a.download=`${selected}.csv`;a.click();URL.revokeObjectURL(url);};
+  const importCsv=async(file:File)=>{const form=new FormData();form.append("file",file);const r=await fetch(`${API_URL}/api/v1/dynamic/${selected}/import.csv`,{method:"POST",headers:authHeaders(),body:form});const body=await r.json();if(!r.ok)return setMessage(body.detail||"Import thất bại");setMessage(`Import thành công ${body.imported}, lỗi ${body.failed}`);await loadRecords(selected);await onChanged();};
+  return <section className="panel settings-form"><div className="panel-header"><div><h2>Dynamic Resource Console</h2><p>Definition, schema validation, Generic CRUD, history và CSV.</p></div><span className="live-pill"><StatusDot /> API thật</span></div>
+    {message&&<p className="auth-error" role="status">{message}</p>}
+    <div className="form-grid"><label>Resource key<input value={key} onChange={e=>setKey(e.target.value)} placeholder="customer-profile" /></label><label>Tên definition<input value={name} onChange={e=>setName(e.target.value)} placeholder="Customer Profile" /></label></div>
+    <label>JSON Schema<textarea rows={4} value={schema} onChange={e=>setSchema(e.target.value)} /></label><button className="secondary-button" onClick={createDefinition}>Tạo definition</button>
+    <hr/><label>Definition<select value={selected} onChange={e=>setSelected(e.target.value)}><option value="">Chọn definition</option>{definitions.map(d=><option key={d.id} value={d.resourceKey}>{d.name} · v{d.version}</option>)}</select></label>
+    {selected&&<><label>Record JSON<textarea rows={4} value={recordJson} onChange={e=>setRecordJson(e.target.value)} /></label><div className="filter-row"><button className="primary-button" onClick={createRecord}>Tạo record</button><button className="secondary-button" onClick={exportCsv}>Export CSV</button><label className="secondary-button">Import CSV<input hidden type="file" accept=".csv,text/csv" onChange={e=>e.target.files?.[0]&&importCsv(e.target.files[0])}/></label></div>
+    <div className="data-table"><div className="table-row table-head"><span>ID</span><span>Data</span><span>Version</span><span>Cập nhật</span><span></span><span></span></div>{records.map(r=><div className="table-row" key={r.id}><span><code>{r.id.slice(0,8)}</code></span><span><code>{JSON.stringify(r.data)}</code></span><span>v{r.version}</span><span>{new Date(r.updatedAt).toLocaleString("vi-VN")}</span><span></span><span></span></div>)}</div></>}
+  </section>;
+}
+
+function Resources({ items, onChanged }: { items: ResourceItem[]; onChanged: () => Promise<void> }) {
   const [query, setQuery] = useState("");
   const filtered = items.filter((r) => `${r.name} ${r.ownerModule}`.toLowerCase().includes(query.toLowerCase()));
   return (
     <>
-      <PageTitle eyebrow="Three-Plane Registry" title="Resources" description="Domain aggregate và Dynamic Resource cùng đăng ký capability nhưng giữ persistence độc lập." action={<button className="primary-button" onClick={onCreate}>＋ Tạo definition</button>} />
+      <PageTitle eyebrow="Three-Plane Registry" title="Resources" description="Domain aggregate và Dynamic Resource cùng đăng ký capability nhưng giữ persistence độc lập." />
       <section className="panel table-panel">
         <div className="table-tools"><div className="search-field wide">⌕ <input value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Tìm resource" placeholder="Tìm resource, module..." /></div><button className="filter-chip active">Tất cả</button><button className="filter-chip">Domain</button><button className="filter-chip">Dynamic</button></div>
         <div className="data-table" role="table" aria-label="Danh sách resources">
@@ -222,6 +245,7 @@ function Resources({ items, onCreate }: { items: ResourceItem[]; onCreate: () =>
           </button>)}
         </div>
       </section>
+      <DynamicConsole onChanged={onChanged} />
     </>
   );
 }
@@ -312,7 +336,6 @@ export default function Home() {
   const refresh = async () => { const response=await fetch(`${API_URL}/api/v1/control-plane/bootstrap`,{headers:{Authorization:`Bearer ${token()}`}}); if(!response.ok) throw new Error("Không thể tải dữ liệu"); setData(await response.json()); };
   const mutate = async (path:string,method:string,body?:unknown) => { setOperationError(""); const response=await fetch(`${API_URL}${path}`,{method,headers:{Authorization:`Bearer ${token()}`,"Content-Type":"application/json"},body:body===undefined?undefined:JSON.stringify(body)}); if(!response.ok){const problem=await response.json().catch(()=>({})); const message=problem.detail||"Thao tác thất bại"; setOperationError(message); throw new Error(message);} await refresh(); };
   const changeModuleStatus = (item:ModuleItem) => mutate(`/api/v1/control-plane/modules/${item.id}/status`,"PATCH",{status:item.status === "DISABLED" ? "HEALTHY" : "DISABLED"}).catch(()=>undefined);
-  const createResource = () => { const name=window.prompt("Tên resource"); if(!name)return; const ownerModule=window.prompt("Owner module key",data?.modules[0]?.moduleKey||""); if(!ownerModule)return; mutate("/api/v1/control-plane/resources","POST",{name,ownerModule,storageMode:"DYNAMIC",schemaVersion:"v1"}).catch(()=>undefined); };
   const createRole = () => { const name=window.prompt("Tên vai trò"); if(!name)return; mutate("/api/v1/control-plane/roles","POST",{name,scope:"Toàn deployment"}).catch(()=>undefined); };
   const signIn = (token: string, remember: boolean) => {
     (remember ? window.localStorage : window.sessionStorage).setItem("core-access-token", token);
@@ -358,7 +381,7 @@ export default function Home() {
           {!data && <div className="auth-loading" aria-label="Đang tải dữ liệu"><span /></div>}
           {data && view === "overview" && <Overview onNavigate={navigate} data={data} />}
           {data && view === "modules" && <Modules items={data.modules} onStatus={changeModuleStatus} />}
-          {data && view === "resources" && <Resources items={data.resources} onCreate={createResource} />}
+          {data && view === "resources" && <Resources items={data.resources} onChanged={refresh} />}
           {data && view === "access" && <Access items={data.roles} onCreate={createRole} />}
           {data && view === "activity" && <Activity items={data.activities} />}
           {data && view === "files" && <Files items={data.files} storageGb={data.summary.storageGb} />}

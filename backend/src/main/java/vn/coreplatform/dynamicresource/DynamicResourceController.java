@@ -6,12 +6,16 @@ import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import java.time.Instant;
+import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
+import org.apache.commons.csv.*;
 import org.springframework.http.*;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.Authentication;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import vn.coreplatform.permission.PermissionService;
 
 @RestController @RequestMapping("/api/v1/dynamic")
@@ -22,6 +26,7 @@ public class DynamicResourceController {
   public record Revision(UUID id,int version,String operation,JsonNode data,UUID actorId,Instant occurredAt){}
   public record DefinitionCreate(@NotBlank @Pattern(regexp="[a-z][a-z0-9-]{2,99}") String resourceKey,@NotBlank @Size(max=160) String name,@NotNull JsonNode schema){}
   public record PageResult(List<RecordItem> items,int page,int size,long total){}
+  public record ImportResult(int imported,int failed,List<String> errors){}
 
   @GetMapping("/definitions") List<Definition> definitions(Authentication auth){permissions.require(auth,"DYNAMIC_DEFINITION","READ",null);var t=tenant(auth);return jdbc.query("select * from dynamic_resource.definition where tenant_id=? order by name",(r,n)->definition(r),t);}
   @PostMapping("/definitions") @ResponseStatus(HttpStatus.CREATED) @Transactional Definition createDefinition(@Valid @RequestBody DefinitionCreate request,Authentication auth){
@@ -51,8 +56,19 @@ public class DynamicResourceController {
   @DeleteMapping("/{resourceKey}/records/{id}") @ResponseStatus(HttpStatus.NO_CONTENT) @Transactional void archive(@PathVariable String resourceKey,@PathVariable UUID id,Authentication auth){var current=getRecord(id,resourceKey,tenant(auth));permissions.require(auth,"DYNAMIC_RECORD","DELETE",current.ownerSubjectId());var t=tenant(auth);var d=definitionByKey(resourceKey,t);int c=jdbc.update("update dynamic_resource.record set status='ARCHIVED',record_version=record_version+1,updated_at=now() where id=? and tenant_id=? and definition_id=? and status='ACTIVE'",id,t,d.id());if(c==0)throw new ApiProblem(HttpStatus.NOT_FOUND,"RECORD_NOT_FOUND","Record không tồn tại");audit(auth,"DYNAMIC_RECORD_ARCHIVED",resourceKey,id);}
   @GetMapping("/{resourceKey}/records/{id}/history") List<Revision> history(@PathVariable String resourceKey,@PathVariable UUID id,Authentication auth){var current=getRecord(id,resourceKey,tenant(auth));permissions.require(auth,"DYNAMIC_RECORD","READ",current.ownerSubjectId());var t=tenant(auth);return jdbc.query("select * from dynamic_resource.revision where tenant_id=? and record_id=? order by record_version desc",(r,n)->new Revision(r.getObject("id",UUID.class),r.getInt("record_version"),r.getString("operation"),readJson(r.getString("data")),r.getObject("actor_id",UUID.class),r.getTimestamp("occurred_at").toInstant()),t,id);}
 
+  @GetMapping(value="/{resourceKey}/export.csv",produces="text/csv") ResponseEntity<byte[]> exportCsv(@PathVariable String resourceKey,Authentication auth){
+    var scope=permissions.scope(auth,"DYNAMIC_RECORD","READ");if(!scope.allowed())throw new ApiProblem(HttpStatus.FORBIDDEN,"PERMISSION_DENIED","Không có quyền export");var t=tenant(auth);var d=definitionByKey(resourceKey,t);var owner=scope.ownerOnly()?account(auth):null;
+    var rows=jdbc.query("select data from dynamic_resource.record where tenant_id=? and definition_id=? and status='ACTIVE' and (?::uuid is null or owner_subject_id=?) order by created_at,id",(r,n)->readJson(r.getString(1)),t,d.id(),owner,owner);
+    try(var out=new ByteArrayOutputStream();var writer=new OutputStreamWriter(out,StandardCharsets.UTF_8);var csv=new CSVPrinter(writer,CSVFormat.DEFAULT.builder().setHeader(fieldKeys(d.schema()).toArray(String[]::new)).build())){for(var row:rows){var values=new ArrayList<String>();for(var key:fieldKeys(d.schema()))values.add(row.path(key).isMissingNode()?"":row.path(key).asText());csv.printRecord(values);}csv.flush();audit(auth,"DYNAMIC_CSV_EXPORTED",resourceKey,d.id());return ResponseEntity.ok().header(HttpHeaders.CONTENT_DISPOSITION,"attachment; filename=\""+resourceKey+".csv\"").body(out.toByteArray());}catch(IOException e){throw new ApiProblem(HttpStatus.INTERNAL_SERVER_ERROR,"CSV_EXPORT_FAILED","Không thể tạo CSV");}
+  }
+  @PostMapping(value="/{resourceKey}/import.csv",consumes=MediaType.MULTIPART_FORM_DATA_VALUE) @Transactional ImportResult importCsv(@PathVariable String resourceKey,@RequestPart("file") MultipartFile file,Authentication auth){
+    if(file.isEmpty()||file.getSize()>10_000_000)throw new ApiProblem(HttpStatus.BAD_REQUEST,"INVALID_FILE","CSV rỗng hoặc vượt 10 MB");var t=tenant(auth);var d=definitionByKey(resourceKey,t);permissions.require(auth,"DYNAMIC_RECORD","CREATE",account(auth));int imported=0,failed=0,rowNo=1;var errors=new ArrayList<String>();
+    try(var reader=new InputStreamReader(file.getInputStream(),StandardCharsets.UTF_8);var csv=CSVFormat.DEFAULT.builder().setHeader().setSkipHeaderRecord(true).get().parse(reader)){for(var row:csv){rowNo++;if(rowNo>10001)throw new ApiProblem(HttpStatus.BAD_REQUEST,"ROW_LIMIT","Tối đa 10.000 dòng");try{var data=new com.fasterxml.jackson.databind.ObjectMapper().createObjectNode();for(var field:d.schema().path("fields")){var key=field.path("key").asText();var raw=row.isMapped(key)?row.get(key):"";if(raw.isBlank())continue;switch(field.path("type").asText()){case "number"->data.put(key,new java.math.BigDecimal(raw));case "boolean"->data.put(key,Boolean.parseBoolean(raw));default->data.put(key,raw);}}create(resourceKey,data,auth);imported++;}catch(Exception e){failed++;if(errors.size()<100)errors.add("Dòng "+rowNo+": "+e.getMessage());}}}catch(IOException|IllegalArgumentException e){throw new ApiProblem(HttpStatus.BAD_REQUEST,"INVALID_CSV","CSV không hợp lệ: "+e.getMessage());}audit(auth,"DYNAMIC_CSV_IMPORTED",resourceKey,d.id());return new ImportResult(imported,failed,errors);
+  }
+
   private void validateSchema(JsonNode schema){if(!schema.isObject()||!schema.path("fields").isArray())throw new ApiProblem(HttpStatus.BAD_REQUEST,"INVALID_SCHEMA","Schema phải có mảng fields");var keys=new HashSet<String>();for(var f:schema.path("fields")){var k=f.path("key").asText();var type=f.path("type").asText();if(!k.matches("[a-z][a-zA-Z0-9_]{1,79}")||!Set.of("string","number","boolean","date","object").contains(type)||!keys.add(k))throw new ApiProblem(HttpStatus.BAD_REQUEST,"INVALID_FIELD","Field key/type không hợp lệ hoặc trùng");}}
   private void validateData(JsonNode schema,JsonNode data){if(!data.isObject())throw new ApiProblem(HttpStatus.BAD_REQUEST,"INVALID_DATA","Data phải là JSON object");for(var f:schema.path("fields")){var k=f.path("key").asText();var v=data.get(k);if(f.path("required").asBoolean(false)&&(v==null||v.isNull()||v.asText().isBlank()))throw new ApiProblem(HttpStatus.BAD_REQUEST,"REQUIRED_FIELD","Thiếu field bắt buộc: "+k);if(v!=null&&!v.isNull()){var type=f.path("type").asText();boolean ok=switch(type){case "string","date"->v.isTextual();case "number"->v.isNumber();case "boolean"->v.isBoolean();case "object"->v.isObject();default->false;};if(!ok)throw new ApiProblem(HttpStatus.BAD_REQUEST,"FIELD_TYPE_MISMATCH","Sai kiểu dữ liệu: "+k);}}}
+  private List<String> fieldKeys(JsonNode schema){var keys=new ArrayList<String>();schema.path("fields").forEach(f->keys.add(f.path("key").asText()));return keys;}
   private Definition definitionByKey(String key,UUID t){var x=jdbc.query("select * from dynamic_resource.definition where tenant_id=? and resource_key=? and status='ACTIVE'",(r,n)->definition(r),t,key);if(x.isEmpty())throw new ApiProblem(HttpStatus.NOT_FOUND,"DEFINITION_NOT_FOUND","Dynamic Resource không tồn tại");return x.get(0);}
   private Definition getDefinition(UUID id,UUID t){return jdbc.queryForObject("select * from dynamic_resource.definition where id=? and tenant_id=?",(r,n)->definition(r),id,t);}
   private RecordItem getRecord(UUID id,String key,UUID t){var d=definitionByKey(key,t);var x=jdbc.query("select r.*,? resource_key from dynamic_resource.record r where id=? and tenant_id=? and definition_id=?",(r,n)->record(r),key,id,t,d.id());if(x.isEmpty())throw new ApiProblem(HttpStatus.NOT_FOUND,"RECORD_NOT_FOUND","Record không tồn tại");return x.get(0);}
