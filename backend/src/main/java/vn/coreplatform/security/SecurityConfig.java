@@ -23,7 +23,7 @@ public class SecurityConfig {
       var header=req.getHeader(HttpHeaders.AUTHORIZATION);
       if(header!=null&&header.startsWith("Bearer ")){
         var hash=sha256(header.substring(7));
-        jdbc.query("select a.id,a.tenant_id,a.email,a.display_name,a.role from identity.session s join identity.account a on a.id=s.account_id where s.token_hash=? and s.revoked_at is null and s.expires_at>now()", rs->{ if(rs.next()){ var auth=new UsernamePasswordAuthenticationToken(rs.getString("email"),null,List.of(new SimpleGrantedAuthority("ROLE_"+rs.getString("role")))); auth.setDetails(Map.of("accountId",rs.getObject("id"),"tenantId",rs.getObject("tenant_id"),"displayName",rs.getString("display_name"))); SecurityContextHolder.getContext().setAuthentication(auth);} return null;},hash);
+        jdbc.query("select a.id,a.tenant_id,a.email,a.display_name,a.role from identity.session s join identity.account a on a.id=s.account_id where s.token_hash=? and s.revoked_at is null and s.expires_at>now() and a.enabled=true", rs->{ if(rs.next()){ var auth=new UsernamePasswordAuthenticationToken(rs.getString("email"),null,List.of(new SimpleGrantedAuthority("ROLE_"+rs.getString("role")))); auth.setDetails(Map.of("accountId",rs.getObject("id"),"tenantId",rs.getObject("tenant_id"),"displayName",rs.getString("display_name"))); SecurityContextHolder.getContext().setAuthentication(auth);} return null;},hash);
       } chain.doFilter(req,res);
     }
   }
