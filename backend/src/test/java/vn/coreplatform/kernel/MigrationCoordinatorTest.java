@@ -39,7 +39,7 @@ class MigrationCoordinatorTest {
       catch (Exception e) { throw new IllegalStateException(e); }
     }).toList();
       // đúng một instance thực thi migration, instance kia chờ lock rồi no-op
-      assertThat(applied.stream().mapToLong(Long::longValue).sum()).isEqualTo(13);
+      assertThat(applied.stream().mapToLong(Long::longValue).sum()).isEqualTo(15);
     assertThat(applied).contains(0L);
 
     try (Connection connection = DriverManager.getConnection(url(), user(), password())) {
@@ -51,7 +51,7 @@ class MigrationCoordinatorTest {
       var distinct = connection.createStatement().executeQuery(
           "select count(distinct version) from flyway_schema_history where version is not null");
       distinct.next();
-      assertThat(distinct.getLong(1)).isEqualTo(13);
+      assertThat(distinct.getLong(1)).isEqualTo(15);
 
       var lockFree = connection.createStatement().executeQuery("select pg_try_advisory_lock(" + MigrationCoordinator.ADVISORY_LOCK_KEY + ")");
       lockFree.next();
