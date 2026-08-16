@@ -22,7 +22,7 @@ import vn.coreplatform.permission.RequirePermission;
 
 @RestController @RequestMapping("/api/v1/dynamic")
 public class DynamicResourceController {
-  private final JdbcTemplate jdbc;private final PermissionService permissions;private final ResourceRegistry resources;private final vn.coreplatform.audit.AuditService audits; public DynamicResourceController(JdbcTemplate jdbc,PermissionService permissions,ResourceRegistry resources,vn.coreplatform.audit.AuditService audits){this.jdbc=jdbc;this.permissions=permissions;this.resources=resources;this.audits=audits;}
+  private final JdbcTemplate jdbc;private final PermissionService permissions;private final ResourceRegistry resources;private final vn.coreplatform.audit.AuditService audits;private final vn.coreplatform.eventing.OutboxService outbox; public DynamicResourceController(JdbcTemplate jdbc,PermissionService permissions,ResourceRegistry resources,vn.coreplatform.audit.AuditService audits,vn.coreplatform.eventing.OutboxService outbox){this.jdbc=jdbc;this.permissions=permissions;this.resources=resources;this.audits=audits;this.outbox=outbox;}
   public record Definition(UUID id,String resourceKey,String name,int version,JsonNode schema,String status,String dataClassification,Instant updatedAt){}
   public record RecordItem(UUID id,String resourceKey,JsonNode data,int version,String status,UUID ownerSubjectId,Instant createdAt,Instant updatedAt){}
   public record Revision(UUID id,int version,String operation,JsonNode data,UUID actorId,Instant occurredAt){}
@@ -70,16 +70,25 @@ public class DynamicResourceController {
     var actor=account(auth);permissions.require(auth,"DYNAMIC_RECORD","CREATE",actor);var t=tenant(auth);var d=definitionByKey(resourceKey,t);validateData(d.schema(),data);var id=UUID.randomUUID();
     jdbc.update("insert into dynamic_resource.record(id,tenant_id,definition_id,data,owner_subject_id,created_by) values(?,?,?,?::jsonb,?,?)",id,t,d.id(),data.toString(),actor,actor);
     jdbc.update("insert into dynamic_resource.revision(tenant_id,record_id,record_version,operation,data,actor_id) values(?,?,1,'CREATE',?::jsonb,?)",t,id,data.toString(),actor);
-    resources.adjustRecordCount(resourceKey,1); audit(auth,"DYNAMIC_RECORD_CREATED",resourceKey,id); return getRecord(id,resourceKey,t);
+    resources.adjustRecordCount(resourceKey,1);
+    outbox.publish(t.toString(), "dynamic-record.created.v1", "dynamic-record", id.toString(),
+        new com.fasterxml.jackson.databind.ObjectMapper().createObjectNode().put("resourceKey", resourceKey).put("version", 1));
+    audit(auth,"DYNAMIC_RECORD_CREATED",resourceKey,id); return getRecord(id,resourceKey,t);
   }
   @GetMapping("/{resourceKey}/records/{id}") RecordItem get(@PathVariable String resourceKey,@PathVariable UUID id,Authentication auth){var item=getRecord(id,resourceKey,tenant(auth));permissions.require(auth,"DYNAMIC_RECORD","READ",item.ownerSubjectId());return item;}
   @PutMapping("/{resourceKey}/records/{id}") @Transactional RecordItem update(@PathVariable String resourceKey,@PathVariable UUID id,@RequestBody JsonNode data,@RequestHeader("If-Match") int expectedVersion,Authentication auth){
     var current=getRecord(id,resourceKey,tenant(auth));permissions.require(auth,"DYNAMIC_RECORD","UPDATE",current.ownerSubjectId());var t=tenant(auth);var d=definitionByKey(resourceKey,t);validateData(d.schema(),data);int next=expectedVersion+1;
     int changed=jdbc.update("update dynamic_resource.record set data=?::jsonb,record_version=?,updated_at=now() where id=? and tenant_id=? and definition_id=? and record_version=? and status='ACTIVE'",data.toString(),next,id,t,d.id(),expectedVersion);
     if(changed==0)throw new ApiProblem(HttpStatus.CONFLICT,"VERSION_CONFLICT","Record đã thay đổi hoặc không tồn tại");
-    jdbc.update("insert into dynamic_resource.revision(tenant_id,record_id,record_version,operation,data,actor_id) values(?,?,?,'UPDATE',?::jsonb,?)",t,id,next,data.toString(),account(auth));audit(auth,"DYNAMIC_RECORD_UPDATED",resourceKey,id);return getRecord(id,resourceKey,t);
+    jdbc.update("insert into dynamic_resource.revision(tenant_id,record_id,record_version,operation,data,actor_id) values(?,?,?,'UPDATE',?::jsonb,?)",t,id,next,data.toString(),account(auth));
+    outbox.publish(t.toString(), "dynamic-record.updated.v1", "dynamic-record", id.toString(),
+        new com.fasterxml.jackson.databind.ObjectMapper().createObjectNode().put("resourceKey", resourceKey).put("version", next));
+    audit(auth,"DYNAMIC_RECORD_UPDATED",resourceKey,id);return getRecord(id,resourceKey,t);
   }
-  @DeleteMapping("/{resourceKey}/records/{id}") @ResponseStatus(HttpStatus.NO_CONTENT) @Transactional void archive(@PathVariable String resourceKey,@PathVariable UUID id,Authentication auth){var current=getRecord(id,resourceKey,tenant(auth));permissions.require(auth,"DYNAMIC_RECORD","DELETE",current.ownerSubjectId());var t=tenant(auth);var d=definitionByKey(resourceKey,t);int c=jdbc.update("update dynamic_resource.record set status='ARCHIVED',record_version=record_version+1,updated_at=now() where id=? and tenant_id=? and definition_id=? and status='ACTIVE'",id,t,d.id());if(c==0)throw new ApiProblem(HttpStatus.NOT_FOUND,"RECORD_NOT_FOUND","Record không tồn tại");audit(auth,"DYNAMIC_RECORD_ARCHIVED",resourceKey,id);}
+  @DeleteMapping("/{resourceKey}/records/{id}") @ResponseStatus(HttpStatus.NO_CONTENT) @Transactional void archive(@PathVariable String resourceKey,@PathVariable UUID id,Authentication auth){var current=getRecord(id,resourceKey,tenant(auth));permissions.require(auth,"DYNAMIC_RECORD","DELETE",current.ownerSubjectId());var t=tenant(auth);var d=definitionByKey(resourceKey,t);int c=jdbc.update("update dynamic_resource.record set status='ARCHIVED',record_version=record_version+1,updated_at=now() where id=? and tenant_id=? and definition_id=? and status='ACTIVE'",id,t,d.id());if(c==0)throw new ApiProblem(HttpStatus.NOT_FOUND,"RECORD_NOT_FOUND","Record không tồn tại");
+    outbox.publish(t.toString(), "dynamic-record.archived.v1", "dynamic-record", id.toString(),
+        new com.fasterxml.jackson.databind.ObjectMapper().createObjectNode().put("resourceKey", resourceKey));
+    audit(auth,"DYNAMIC_RECORD_ARCHIVED",resourceKey,id);}
   @GetMapping("/{resourceKey}/records/{id}/history") List<Revision> history(@PathVariable String resourceKey,@PathVariable UUID id,Authentication auth){var current=getRecord(id,resourceKey,tenant(auth));permissions.require(auth,"DYNAMIC_RECORD","READ",current.ownerSubjectId());var t=tenant(auth);return jdbc.query("select * from dynamic_resource.revision where tenant_id=? and record_id=? order by record_version desc",(r,n)->new Revision(r.getObject("id",UUID.class),r.getInt("record_version"),r.getString("operation"),readJson(r.getString("data")),r.getObject("actor_id",UUID.class),r.getTimestamp("occurred_at").toInstant()),t,id);}
 
   @GetMapping(value="/{resourceKey}/export.csv",produces="text/csv") ResponseEntity<byte[]> exportCsv(@PathVariable String resourceKey,Authentication auth){

@@ -18,7 +18,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * phải làm rule fail — chứng minh rule thật sự bắt được lỗi, không phải rule suông.
  */
 class ModuleBoundaryTest {
-  static final List<String> MODULES = List.of("identity", "permission", "dynamicresource", "filemanagement", "controlplane", "audit");
+  static final List<String> MODULES = List.of("identity", "permission", "dynamicresource", "filemanagement", "controlplane", "audit", "eventing");
   static JavaClasses productionClasses;
 
   @BeforeAll static void importProductionCode() {
@@ -31,7 +31,7 @@ class ModuleBoundaryTest {
     var rules = new ArrayList<ArchRule>();
     for (var from : MODULES) for (var to : MODULES) {
       // permission (PDP) và audit (audit trail dùng chung) là hợp đồng dùng chung
-      if (from.equals(to) || to.equals("permission") || to.equals("audit")) continue;
+      if (from.equals(to) || to.equals("permission") || to.equals("audit") || to.equals("eventing")) continue;
       rules.add(noClasses().that().resideInAPackage(".." + from + "..")
           .should().dependOnClassesThat().resideInAPackage(".." + to + "..")
           .because("module chỉ được phụ thuộc kernel/shared/security/permission/audit, không chạm module khác"));
@@ -46,7 +46,7 @@ class ModuleBoundaryTest {
   @Test void kernelMustNotDependOnBusinessModules() {
     noClasses().that().resideInAPackage("..kernel..")
         .should().dependOnClassesThat().resideInAnyPackage(
-            "..identity..", "..permission..", "..dynamicresource..", "..filemanagement..", "..controlplane..", "..audit..")
+            "..identity..", "..permission..", "..dynamicresource..", "..filemanagement..", "..controlplane..", "..audit..", "..eventing..")
         .because("kernel phải trung tính nghiệp vụ (risk: kernel phình thành business framework)")
         .check(productionClasses);
   }
@@ -54,7 +54,7 @@ class ModuleBoundaryTest {
   @Test void sharedMustNotDependOnModules() {
     noClasses().that().resideInAPackage("..shared..")
         .should().dependOnClassesThat().resideInAnyPackage(
-            "..identity..", "..permission..", "..dynamicresource..", "..filemanagement..", "..controlplane..", "..audit..", "..kernel..")
+            "..identity..", "..permission..", "..dynamicresource..", "..filemanagement..", "..controlplane..", "..audit..", "..eventing..", "..kernel..")
         .check(productionClasses);
   }
 

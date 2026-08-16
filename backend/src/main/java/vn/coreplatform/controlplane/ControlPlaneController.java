@@ -21,7 +21,8 @@ public class ControlPlaneController {
   private final JdbcTemplate jdbc;
   private final vn.coreplatform.kernel.ResourceRegistry resources;
   private final vn.coreplatform.audit.AuditService audits;
-  public ControlPlaneController(JdbcTemplate jdbc, vn.coreplatform.kernel.ResourceRegistry resources, vn.coreplatform.audit.AuditService audits){this.jdbc=jdbc;this.resources=resources;this.audits=audits;}
+  private final vn.coreplatform.eventing.OutboxService outbox;
+  public ControlPlaneController(JdbcTemplate jdbc, vn.coreplatform.kernel.ResourceRegistry resources, vn.coreplatform.audit.AuditService audits, vn.coreplatform.eventing.OutboxService outbox){this.jdbc=jdbc;this.resources=resources;this.audits=audits;this.outbox=outbox;}
 
   public record Summary(long resources,long modules,long pendingOutbox,long runningJobs,long files,double storageGb,String coreVersion,String environment){}
   public record Module(UUID id,String name,String moduleKey,String version,String status,String description,String metric){}
@@ -143,6 +144,28 @@ public class ControlPlaneController {
     audits.releaseLegalHold(tenantKey);
     audits.record(tenantKey, accountIdOf(auth), auth.getName(), "AUDIT_LEGAL_HOLD_RELEASED", "AUDIT", tenantKey, "SUCCESS", null);
     return Map.of("tenantKey", tenantKey, "held", false);
+  }
+
+  // ---- E6: outbox operations ----
+  public record OutboxItem(UUID id,String eventType,String tenantKey,String status,int attempts,Instant createdAt,Instant availableAt,String lastError) {}
+  public record ReplayResult(UUID id, boolean replayed) {}
+
+  @GetMapping("/outbox")
+  List<OutboxItem> outbox(@RequestParam(defaultValue="all") String status, Authentication auth) {
+    requireAdmin(auth);
+    if ("all".equals(status))
+      return jdbc.query("select id,event_type,tenant_key,status,attempts,created_at,available_at,last_error from async.outbox_event order by created_at desc limit 100",
+        (r,n)->new OutboxItem(r.getObject("id",UUID.class),r.getString("event_type"),r.getString("tenant_key"),r.getString("status"),r.getInt("attempts"),r.getTimestamp("created_at").toInstant(),r.getTimestamp("available_at").toInstant(),r.getString("last_error")));
+    return jdbc.query("select id,event_type,tenant_key,status,attempts,created_at,available_at,last_error from async.outbox_event where status=? order by created_at desc limit 100",
+      (r,n)->new OutboxItem(r.getObject("id",UUID.class),r.getString("event_type"),r.getString("tenant_key"),r.getString("status"),r.getInt("attempts"),r.getTimestamp("created_at").toInstant(),r.getTimestamp("available_at").toInstant(),r.getString("last_error")),status);
+  }
+
+  @PostMapping("/outbox/{id}/replay") @Transactional
+  ReplayResult replayOutboxEvent(@PathVariable UUID id, Authentication auth) {
+    requireAdmin(auth);
+    outbox.replay(id, auth.getName());
+    audit(auth, "OUTBOX_REPLAYED", "OUTBOX", id.toString(), "SUCCESS");
+    return new ReplayResult(id, true);
   }
 
   private List<Module> modules(){return jdbc.query("select * from platform.module order by sort_order",(r,n)->module(r));}

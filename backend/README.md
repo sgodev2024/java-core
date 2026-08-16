@@ -67,6 +67,12 @@ The suite covers the auth/MFA/session cycle, permission decisions (ownerOnly sco
   with verification that detects tampering, deletion and sequence gaps; checkpoint before
   retention, SECURITY DEFINER `audit.purge_old` that never deletes un-checkpointed batches and
   respects legal holds; runtime role is append-only on `audit.event` (no UPDATE/DELETE)
+- Eventing (E6): stable integration event envelope (`EventContractTest` gates the JSON field set
+  in CI), transactional outbox published inside business transactions (crash-safe by construction),
+  relay claiming batches via `FOR UPDATE SKIP LOCKED` leases with exponential backoff and DEAD
+  (DLQ) after max attempts, inbox table making consumer side effects exactly-once per
+  (consumer, event), audited replay that cannot double-apply, and an activity projector as the
+  built-in sample consumer; relay enabled in docker via `CORE_OUTBOX_ENABLED`
 - BCrypt local identity, expiring MFA challenge and hashed opaque sessions
 - login, MFA, current-user and logout APIs
 - security audit records with correlation ID propagation
