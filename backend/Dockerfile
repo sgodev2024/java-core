@@ -5,7 +5,8 @@ RUN mvn -B dependency:go-offline
 COPY src src
 RUN mvn -B -DskipTests package
 FROM eclipse-temurin:21-jre-alpine
-RUN addgroup -S core && adduser -S core -G core
+RUN addgroup -S core && adduser -S core -G core \
+  && mkdir -p /data/files && chown -R core:core /data
 WORKDIR /app
 COPY --from=build /workspace/target/core-platform-runtime-*.jar app.jar
 USER core
