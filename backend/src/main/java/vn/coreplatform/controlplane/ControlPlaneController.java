@@ -18,7 +18,8 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/v1/control-plane")
 public class ControlPlaneController {
   private final JdbcTemplate jdbc;
-  public ControlPlaneController(JdbcTemplate jdbc){this.jdbc=jdbc;}
+  private final vn.coreplatform.kernel.ResourceRegistry resources;
+  public ControlPlaneController(JdbcTemplate jdbc, vn.coreplatform.kernel.ResourceRegistry resources){this.jdbc=jdbc;this.resources=resources;}
 
   public record Summary(long resources,long modules,long pendingOutbox,long runningJobs,long files,double storageGb,String coreVersion,String environment){}
   public record Module(UUID id,String name,String moduleKey,String version,String status,String description,String metric){}
@@ -34,12 +35,18 @@ public class ControlPlaneController {
   public record SettingUpdate(@NotBlank @Size(max=100) String key,@NotBlank @Size(max=500) String value){}
 
   @GetMapping("/bootstrap")
-  Bootstrap bootstrap(){
+  Bootstrap bootstrap(Authentication auth){
+    requireAdmin(auth);
     var summary=jdbc.queryForObject("select (select coalesce(sum(record_count),0) from platform.resource_descriptor) resources,(select count(*) from platform.module) modules,(select count(*) from async.outbox_event where status='PENDING') outbox,(select count(*) from async.job where status='RUNNING') jobs,(select count(*) from files.file_object) files,(select coalesce(sum(size_bytes),0)/1073741824.0 from files.file_object) storage_gb",(r,n)->new Summary(r.getLong("resources"),r.getLong("modules"),r.getLong("outbox"),r.getLong("jobs"),r.getLong("files"),r.getDouble("storage_gb"),"1.0.0","core-production-vn"));
-    return new Bootstrap(summary,modules(),resources(),activities(),roles(),files(),audit(50),settings());
+    return new Bootstrap(summary,modules(),resources(),activities(),roles(),files(),auditRows(50),settings());
   }
 
-  @GetMapping("/audit") List<AuditItem> audit(@RequestParam(defaultValue="50") int limit){
+  @GetMapping("/audit") List<AuditItem> audit(@RequestParam(defaultValue="50") int limit, Authentication auth){
+    requireAdmin(auth);
+    return auditRows(limit);
+  }
+
+  private List<AuditItem> auditRows(int limit){
     int safe=Math.max(1,Math.min(limit,200));
     return jdbc.query("select id,actor_email,action,resource_type,resource_id,result,correlation_id,occurred_at from audit.event order by occurred_at desc limit ?",(r,n)->new AuditItem(r.getObject("id",UUID.class),r.getString("actor_email"),r.getString("action"),r.getString("resource_type"),r.getString("resource_id"),r.getString("result"),r.getObject("correlation_id",UUID.class),r.getTimestamp("occurred_at").toInstant()),safe);
   }
@@ -55,12 +62,14 @@ public class ControlPlaneController {
   @PostMapping("/resources") @ResponseStatus(HttpStatus.CREATED) @Transactional
   Resource createResource(@Valid @RequestBody ResourceCreate request,Authentication auth){
     requireAdmin(auth);
-    Integer owner=jdbc.queryForObject("select count(*) from platform.module where module_key=?",Integer.class,request.ownerModule());
-    if(owner==null||owner==0) throw new ApiProblem(HttpStatus.UNPROCESSABLE_ENTITY,"OWNER_MODULE_NOT_FOUND","Owner module không tồn tại");
-    var id=UUID.randomUUID();
-    jdbc.update("insert into platform.resource_descriptor(id,name,storage_mode,owner_module,record_count,schema_version) values(?,?,?,?,0,?)",id,request.name().trim(),request.storageMode(),request.ownerModule(),request.schemaVersion());
-    audit(auth,"RESOURCE_CREATED","RESOURCE",id.toString(),"SUCCESS");
-    return jdbc.queryForObject("select * from platform.resource_descriptor where id=?",(r,n)->resource(r),id);
+    // E4-S01: qua Resource Registry — owner chưa đăng ký hoặc drift descriptor đều bị chặn có kiểm soát
+    var descriptor = resources.register(new vn.coreplatform.kernel.ResourceDescriptor(
+        request.name().toLowerCase(java.util.Locale.ROOT).replaceAll("[^a-z0-9]+","-").replaceAll("(^-+|-+$)",""),
+        request.name().trim(), request.ownerModule(), request.storageMode(), request.schemaVersion(),
+        java.util.List.of("READ","CREATE","UPDATE","DELETE"), "ALWAYS", null));
+    var created = jdbc.queryForObject("select * from platform.resource_descriptor where resource_type=?",(r,n)->resource(r),descriptor.resourceType());
+    audit(auth,"RESOURCE_CREATED","RESOURCE",created.id().toString(),"SUCCESS");
+    return created;
   }
 
   @PostMapping("/roles") @ResponseStatus(HttpStatus.CREATED) @Transactional
@@ -99,5 +108,5 @@ public class ControlPlaneController {
   private Activity activity(java.sql.ResultSet r)throws java.sql.SQLException{return new Activity(r.getObject("id",UUID.class),r.getString("kind"),r.getString("name"),r.getString("metadata"),r.getString("status"),r.getTimestamp("occurred_at").toInstant());}
   private Role role(java.sql.ResultSet r)throws java.sql.SQLException{return new Role(r.getObject("id",UUID.class),r.getString("name"),r.getInt("user_count"),r.getInt("policy_count"),r.getString("scope"));}
   private void requireAdmin(Authentication auth){if(auth==null||auth.getAuthorities().stream().noneMatch(a->a.getAuthority().equals("ROLE_PLATFORM_ADMIN")))throw new ApiProblem(HttpStatus.FORBIDDEN,"PERMISSION_DENIED","Yêu cầu quyền Platform Administrator");}
-  private void audit(Authentication auth,String action,String type,String resourceId,String result){jdbc.update("insert into audit.event(id,actor_email,action,resource_type,resource_id,result,occurred_at) values(?,?,?,?,?,?,now())",UUID.randomUUID(),auth.getName(),action,type,resourceId,result);}
+  private void audit(Authentication auth,String action,String type,String resourceId,String result){jdbc.update("insert into audit.event(id,actor_email,action,resource_type,resource_id,result,correlation_id,occurred_at) values(?,?,?,?,?,?,?,now())",UUID.randomUUID(),auth.getName(),action,type,resourceId,result,vn.coreplatform.shared.CorrelationIdFilter.current());}
 }
