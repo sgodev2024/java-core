@@ -16,7 +16,7 @@ class ControlPlaneTest extends AbstractApiTest {
     mvc.perform(get("/api/v1/control-plane/bootstrap").with(bearer(adminToken())))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.summary").exists())
-        // 8 module seed demo + kernel & control-plane do ModuleRegistry đăng ký thật
+        // 8 module seed demo (đã gồm audit-store) + kernel & control-plane do ModuleRegistry đăng ký
         .andExpect(jsonPath("$.summary.modules").value(10))
         .andExpect(jsonPath("$.modules").isArray())
         .andExpect(jsonPath("$.audit").isArray())

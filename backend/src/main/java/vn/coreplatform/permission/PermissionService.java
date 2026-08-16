@@ -19,7 +19,7 @@ import vn.coreplatform.shared.CorrelationIdFilter;
  */
 @Service
 public class PermissionService {
-  private final JdbcTemplate jdbc; public PermissionService(JdbcTemplate jdbc){this.jdbc=jdbc;}
+  private final JdbcTemplate jdbc; private final vn.coreplatform.audit.AuditService audits; public PermissionService(JdbcTemplate jdbc,vn.coreplatform.audit.AuditService audits){this.jdbc=jdbc;this.audits=audits;}
   public record Decision(boolean allowed,String reason,boolean ownerOnly){}
 
   private record CacheKey(long revision,UUID tenant,UUID account,String resource,String action){}
@@ -67,10 +67,15 @@ public class PermissionService {
   }
 
   private Decision evaluationDenied(Exception cause){
-    jdbc.update("insert into audit.event(id,actor_email,action,resource_type,result,correlation_id,occurred_at) values(?,null,'POLICY_EVALUATION_ERROR','PERMISSION','FAILED',?,now())",
-      UUID.randomUUID(), CorrelationIdFilter.current());
+    String tenantKey=null;
+    try{ var auth=org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+      if(auth!=null&&auth.getDetails() instanceof Map<?,?> details&&details.get("tenantId") instanceof UUID tenantId)
+        tenantKey=jdbc.queryForObject("select tenant_key from platform.tenant where id=?",String.class,tenantId);
+    }catch(Exception ignored){}
+    audits.record(tenantKey,null,null,"POLICY_EVALUATION_ERROR","PERMISSION",null,"FAILED",null);
     return new Decision(false,"POLICY_EVALUATION_ERROR",false);
   }
+  public String tenantKey(Authentication a){ return jdbc.queryForObject("select tenant_key from platform.tenant where id=?", String.class, tenant(a)); }
   @SuppressWarnings("unchecked") public UUID tenant(Authentication a){return (UUID)((Map<String,Object>)a.getDetails()).get("tenantId");}
   @SuppressWarnings("unchecked") public UUID account(Authentication a){return (UUID)((Map<String,Object>)a.getDetails()).get("accountId");}
   private JsonNode read(String value){try{return new com.fasterxml.jackson.databind.ObjectMapper().readTree(value);}catch(Exception e){throw new IllegalArgumentException("condition_json không hợp lệ",e);}}

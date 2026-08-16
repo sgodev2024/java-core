@@ -15,8 +15,8 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController @RequestMapping("/api/v1/access")
 public class AccessManagementController {
-  private final JdbcTemplate jdbc;private final PasswordEncoder passwords;private final PermissionService permissions;
-  public AccessManagementController(JdbcTemplate jdbc,PasswordEncoder passwords,PermissionService permissions){this.jdbc=jdbc;this.passwords=passwords;this.permissions=permissions;}
+  private final JdbcTemplate jdbc;private final PasswordEncoder passwords;private final PermissionService permissions;private final vn.coreplatform.audit.AuditService audits;
+  public AccessManagementController(JdbcTemplate jdbc,PasswordEncoder passwords,PermissionService permissions,vn.coreplatform.audit.AuditService audits){this.jdbc=jdbc;this.passwords=passwords;this.permissions=permissions;this.audits=audits;}
   public record UserItem(UUID id,String email,String displayName,boolean enabled,List<String> roles,Instant createdAt){}
   public record RoleItem(UUID id,String code,String name,boolean systemRole){}
   public record PolicyItem(UUID id,String code,String resourceType,String action,String effect,String condition,int version,boolean enabled){}

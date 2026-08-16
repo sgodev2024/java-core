@@ -3,6 +3,7 @@ package vn.coreplatform.controlplane;
 import static vn.coreplatform.shared.ApiExceptionHandler.ApiProblem;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -19,7 +20,8 @@ import org.springframework.web.bind.annotation.*;
 public class ControlPlaneController {
   private final JdbcTemplate jdbc;
   private final vn.coreplatform.kernel.ResourceRegistry resources;
-  public ControlPlaneController(JdbcTemplate jdbc, vn.coreplatform.kernel.ResourceRegistry resources){this.jdbc=jdbc;this.resources=resources;}
+  private final vn.coreplatform.audit.AuditService audits;
+  public ControlPlaneController(JdbcTemplate jdbc, vn.coreplatform.kernel.ResourceRegistry resources, vn.coreplatform.audit.AuditService audits){this.jdbc=jdbc;this.resources=resources;this.audits=audits;}
 
   public record Summary(long resources,long modules,long pendingOutbox,long runningJobs,long files,double storageGb,String coreVersion,String environment){}
   public record Module(UUID id,String name,String moduleKey,String version,String status,String description,String metric){}
@@ -97,6 +99,52 @@ public class ControlPlaneController {
     audit(auth,"SETTINGS_UPDATED","SETTING",null,"SUCCESS"); return settings();
   }
 
+  // ---- E5: audit integrity (verify / checkpoint / retention / legal hold) ----
+  public record AuditVerificationView(boolean verified, long checked, Long brokenAtSequence, String reason) {}
+  public record CheckpointView(String tenantKey, long verifiedSequence, String chainHash) {}
+  public record PurgeRequest(@NotBlank String tenantKey, @Min(1) int olderThanDays) {}
+  public record LegalHoldRequest(@NotBlank String tenantKey, @NotBlank @Size(max=400) String reason) {}
+
+  @GetMapping("/audit/verify")
+  AuditVerificationView verifyAuditChain(@RequestParam(defaultValue="default") String tenantKey, Authentication auth) {
+    requireAdmin(auth);
+    var verification = audits.verify(tenantKey);
+    return new AuditVerificationView(verification.verified(), verification.checked(), verification.brokenAtSequence(), verification.reason());
+  }
+
+  @PostMapping("/audit/checkpoint") @Transactional
+  CheckpointView checkpointAuditChain(@RequestParam(defaultValue="default") String tenantKey, Authentication auth) {
+    requireAdmin(auth);
+    long sequence = audits.checkpoint(tenantKey);
+    var chainHash = jdbc.queryForObject("select chain_hash from audit.checkpoint where tenant_key=?", String.class, tenantKey);
+    audit(auth, "AUDIT_CHECKPOINT_CREATED", "AUDIT", tenantKey, "SUCCESS");
+    return new CheckpointView(tenantKey, sequence, chainHash);
+  }
+
+  @PostMapping("/audit/purge") @Transactional
+  Map<String, Object> purgeAudit(@Valid @RequestBody PurgeRequest request, Authentication auth) {
+    requireAdmin(auth);
+    long deleted = audits.purge(request.tenantKey(), request.olderThanDays());
+    audits.record(request.tenantKey(), accountIdOf(auth), auth.getName(), "AUDIT_RETENTION_PURGED", "AUDIT", request.tenantKey(), "SUCCESS", "{\"deleted\":" + deleted + ",\"olderThanDays\":" + request.olderThanDays() + "}");
+    return Map.of("deleted", deleted);
+  }
+
+  @PostMapping("/audit/legal-hold") @Transactional
+  Map<String, Object> setLegalHold(@Valid @RequestBody LegalHoldRequest request, Authentication auth) {
+    requireAdmin(auth);
+    audits.setLegalHold(request.tenantKey(), request.reason(), auth.getName());
+    audits.record(request.tenantKey(), accountIdOf(auth), auth.getName(), "AUDIT_LEGAL_HOLD_SET", "AUDIT", request.tenantKey(), "SUCCESS", "{\"reason\":\"" + request.reason().replace("\"", "'") + "\"}");
+    return Map.of("tenantKey", request.tenantKey(), "held", true);
+  }
+
+  @DeleteMapping("/audit/legal-hold/{tenantKey}") @Transactional
+  Map<String, Object> releaseLegalHold(@PathVariable String tenantKey, Authentication auth) {
+    requireAdmin(auth);
+    audits.releaseLegalHold(tenantKey);
+    audits.record(tenantKey, accountIdOf(auth), auth.getName(), "AUDIT_LEGAL_HOLD_RELEASED", "AUDIT", tenantKey, "SUCCESS", null);
+    return Map.of("tenantKey", tenantKey, "held", false);
+  }
+
   private List<Module> modules(){return jdbc.query("select * from platform.module order by sort_order",(r,n)->module(r));}
   private List<Resource> resources(){return jdbc.query("select * from platform.resource_descriptor order by updated_at desc",(r,n)->resource(r));}
   private List<Activity> activities(){return jdbc.query("select * from platform.activity order by occurred_at desc limit 50",(r,n)->activity(r));}
@@ -108,5 +156,7 @@ public class ControlPlaneController {
   private Activity activity(java.sql.ResultSet r)throws java.sql.SQLException{return new Activity(r.getObject("id",UUID.class),r.getString("kind"),r.getString("name"),r.getString("metadata"),r.getString("status"),r.getTimestamp("occurred_at").toInstant());}
   private Role role(java.sql.ResultSet r)throws java.sql.SQLException{return new Role(r.getObject("id",UUID.class),r.getString("name"),r.getInt("user_count"),r.getInt("policy_count"),r.getString("scope"));}
   private void requireAdmin(Authentication auth){if(auth==null||auth.getAuthorities().stream().noneMatch(a->a.getAuthority().equals("ROLE_PLATFORM_ADMIN")))throw new ApiProblem(HttpStatus.FORBIDDEN,"PERMISSION_DENIED","Yêu cầu quyền Platform Administrator");}
-  private void audit(Authentication auth,String action,String type,String resourceId,String result){jdbc.update("insert into audit.event(id,actor_email,action,resource_type,resource_id,result,correlation_id,occurred_at) values(?,?,?,?,?,?,?,now())",UUID.randomUUID(),auth.getName(),action,type,resourceId,result,vn.coreplatform.shared.CorrelationIdFilter.current());}
+  private void audit(Authentication auth,String action,String type,String resourceId,String result){ audits.record(tenantKeyOf(auth), accountIdOf(auth), auth.getName(), action, type, resourceId, result, null); }
+  private String tenantKeyOf(Authentication auth){ var tenantId=((java.util.Map<?,?>)auth.getDetails()).get("tenantId"); return jdbc.queryForObject("select tenant_key from platform.tenant where id=?", String.class, tenantId); }
+  private UUID accountIdOf(Authentication auth){ return (UUID)((java.util.Map<?,?>)auth.getDetails()).get("accountId"); }
 }

@@ -18,7 +18,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * phải làm rule fail — chứng minh rule thật sự bắt được lỗi, không phải rule suông.
  */
 class ModuleBoundaryTest {
-  static final List<String> MODULES = List.of("identity", "permission", "dynamicresource", "filemanagement", "controlplane");
+  static final List<String> MODULES = List.of("identity", "permission", "dynamicresource", "filemanagement", "controlplane", "audit");
   static JavaClasses productionClasses;
 
   @BeforeAll static void importProductionCode() {
@@ -30,10 +30,11 @@ class ModuleBoundaryTest {
   static List<ArchRule> forbiddenPairs() {
     var rules = new ArrayList<ArchRule>();
     for (var from : MODULES) for (var to : MODULES) {
-      if (from.equals(to) || to.equals("permission")) continue;
+      // permission (PDP) và audit (audit trail dùng chung) là hợp đồng dùng chung
+      if (from.equals(to) || to.equals("permission") || to.equals("audit")) continue;
       rules.add(noClasses().that().resideInAPackage(".." + from + "..")
           .should().dependOnClassesThat().resideInAPackage(".." + to + "..")
-          .because("module chỉ được phụ thuộc kernel/shared/security/permission, không chạm module khác"));
+          .because("module chỉ được phụ thuộc kernel/shared/security/permission/audit, không chạm module khác"));
     }
     return rules;
   }
@@ -45,7 +46,7 @@ class ModuleBoundaryTest {
   @Test void kernelMustNotDependOnBusinessModules() {
     noClasses().that().resideInAPackage("..kernel..")
         .should().dependOnClassesThat().resideInAnyPackage(
-            "..identity..", "..permission..", "..dynamicresource..", "..filemanagement..", "..controlplane..")
+            "..identity..", "..permission..", "..dynamicresource..", "..filemanagement..", "..controlplane..", "..audit..")
         .because("kernel phải trung tính nghiệp vụ (risk: kernel phình thành business framework)")
         .check(productionClasses);
   }
@@ -53,7 +54,7 @@ class ModuleBoundaryTest {
   @Test void sharedMustNotDependOnModules() {
     noClasses().that().resideInAPackage("..shared..")
         .should().dependOnClassesThat().resideInAnyPackage(
-            "..identity..", "..permission..", "..dynamicresource..", "..filemanagement..", "..controlplane..", "..kernel..")
+            "..identity..", "..permission..", "..dynamicresource..", "..filemanagement..", "..controlplane..", "..audit..", "..kernel..")
         .check(productionClasses);
   }
 

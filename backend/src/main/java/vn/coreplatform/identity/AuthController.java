@@ -10,14 +10,14 @@ import vn.coreplatform.security.SecurityConfig; import vn.coreplatform.shared.Ap
 
 @RestController @RequestMapping("/api/v1/auth")
 public class AuthController {
-  private final JdbcTemplate jdbc; private final PasswordEncoder encoder; private final SecureRandom random=new SecureRandom();
+  private final JdbcTemplate jdbc; private final PasswordEncoder encoder; private final vn.coreplatform.audit.AuditService audits; private final SecureRandom random=new SecureRandom();
   private final String bootstrapMfaCode; private final boolean allowBootstrapMfa; private final boolean requireAdminMfa;
   static final int MAX_FAILED_ATTEMPTS = 5;
-  public AuthController(JdbcTemplate jdbc,PasswordEncoder encoder,
+  public AuthController(JdbcTemplate jdbc,PasswordEncoder encoder,vn.coreplatform.audit.AuditService audits,
                         @Value("${core.bootstrap-mfa-code:}") String bootstrapMfaCode,
                         @Value("${core.mfa.allow-bootstrap:false}") boolean allowBootstrapMfa,
                         @Value("${core.mfa.require-admin:true}") boolean requireAdminMfa){
-    this.jdbc=jdbc;this.encoder=encoder;this.bootstrapMfaCode=bootstrapMfaCode;this.allowBootstrapMfa=allowBootstrapMfa;this.requireAdminMfa=requireAdminMfa;
+    this.jdbc=jdbc;this.encoder=encoder;this.audits=audits;this.bootstrapMfaCode=bootstrapMfaCode;this.allowBootstrapMfa=allowBootstrapMfa;this.requireAdminMfa=requireAdminMfa;
   }
   record LoginRequest(@Email @NotBlank String email,@NotBlank @Size(min=8,max=128) String password){}
   record LoginResponse(String challengeId,boolean mfaRequired,String maskedDestination){}
@@ -122,7 +122,7 @@ public class AuthController {
       jdbc.update("update identity.session set revoked_at=now() where family_id=? and revoked_at is null",UUID.fromString(family.getFirst()));
       jdbc.update("update identity.refresh_token set revoked_at=now() where session_id in (select id from identity.session where family_id=?) and revoked_at is null",UUID.fromString(family.getFirst()));
     }
-    jdbc.update("insert into audit.event(id,actor_email,action,result,correlation_id,occurred_at) values(?,?,?,?,?,now())",UUID.randomUUID(),auth.getName(),"AUTH_LOGOUT","SUCCESS",CorrelationIdFilter.current());
+    audit(null, auth.getName(), "AUTH_LOGOUT", "SUCCESS");
   }
 
   @PostMapping("/change-password") @Transactional
@@ -135,8 +135,7 @@ public class AuthController {
     var id=(UUID)rows.getFirst().get("id");
     jdbc.update("update identity.account set password_hash=?,password_algo='ARGON2ID',password_changed_at=now(),must_change_password=false where id=?",encoder.encode(input.newPassword()),id);
     jdbc.update("update identity.session set revoked_at=now() where account_id=? and revoked_at is null and token_hash<>?",id,SecurityConfig.sha256(bearer.substring(7)));
-    jdbc.update("insert into audit.event(id,actor_id,actor_email,action,result,correlation_id,occurred_at) values(?,?,?,?,?,?,now())",
-      UUID.randomUUID(),id,auth.getName(),"AUTH_PASSWORD_CHANGED","SUCCESS",CorrelationIdFilter.current());
+    audit(id, auth.getName(), "AUTH_PASSWORD_CHANGED", "SUCCESS");
   }
 
   @PostMapping("/mfa/enroll") @Transactional
@@ -159,8 +158,7 @@ public class AuthController {
     var codes=new ArrayList<String>(); var hashes=new ArrayList<String>();
     for(int i=0;i<8;i++){ var code=randomCode(); codes.add(code); hashes.add(SecurityConfig.sha256(code)); }
     jdbc.update("update identity.mfa_enrollment set confirmed_at=now(),recovery_code_hashes=?::text[] where account_id=?",textArray(hashes),id);
-    jdbc.update("insert into audit.event(id,actor_id,actor_email,action,result,correlation_id,occurred_at) values(?,?,?,?,?,?,now())",
-      UUID.randomUUID(),id,auth.getName(),"AUTH_MFA_ENROLLED","SUCCESS",CorrelationIdFilter.current());
+    audit(id, auth.getName(), "AUTH_MFA_ENROLLED", "SUCCESS");
     return new ConfirmResponse(codes);
   }
 
@@ -199,13 +197,12 @@ public class AuthController {
   private UUID accountId(Authentication auth){ return jdbc.queryForObject("select id from identity.account where email=?",UUID.class,auth.getName()); }
   private UUID tenantId(Authentication auth){ return jdbc.queryForObject("select tenant_id from identity.account where email=?",UUID.class,auth.getName()); }
   private String randomCode(){ var bytes=new byte[8]; random.nextBytes(bytes); return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes).replace('-','A').replace('_','B').substring(0,10).toUpperCase(Locale.ROOT); }
+  private String tenantKeyOf(UUID actorId,String email){
+    if(actorId!=null){var keys=jdbc.queryForList("select t.tenant_key from identity.account a join platform.tenant t on t.id=a.tenant_id where a.id=?",String.class,actorId);if(!keys.isEmpty())return keys.getFirst();}
+    if(email!=null){var keys=jdbc.queryForList("select t.tenant_key from identity.account a join platform.tenant t on t.id=a.tenant_id where lower(a.email)=lower(?)",String.class,email);if(!keys.isEmpty())return keys.getFirst();}
+    return null;
+  }
   private String newToken(){ var bytes=new byte[32]; random.nextBytes(bytes); return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes); }
-  private void audit(UUID actor,String email,String action,String result){
-    jdbc.update("insert into audit.event(id,actor_id,actor_email,action,result,correlation_id,occurred_at) values(?,?,?,?,?,?,now())",
-      UUID.randomUUID(),actor,email,action,result,CorrelationIdFilter.current());
-  }
-  private void auditFailure(String email,String action){
-    jdbc.update("insert into audit.event(id,actor_email,action,result,correlation_id,occurred_at) values(?,?,?,?,?,now())",
-      UUID.randomUUID(),email,action,"FAILED",CorrelationIdFilter.current());
-  }
+  private void audit(UUID actor,String email,String action,String result){ audits.record(tenantKeyOf(actor,email), actor, email, action, null, null, result, null); }
+  private void auditFailure(String email,String action){ audits.record(tenantKeyOf(null,email), null, email, action, null, null, "FAILED", null); }
 }

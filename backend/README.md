@@ -61,6 +61,12 @@ The suite covers the auth/MFA/session cycle, permission decisions (ownerOnly sco
   list/search luôn lọc bằng SQL predicate (WHERE + LIMIT/OFFSET + COUNT), và classification gate:
   dynamic definition thiếu classification được phê duyệt ở trạng thái PENDING, không dùng được
   qua generic CRUD cho đến khi `POST /dynamic/{key}/classification` phê duyệt
+- Audit integrity (E5): centralized AuditService — business events are written in the same
+  transaction as the operation (audit failure rolls the operation back); sensitive fields are
+  masked before persistence; per-tenant hash chain (`payload_hash`/`prev_hash` + chain state)
+  with verification that detects tampering, deletion and sequence gaps; checkpoint before
+  retention, SECURITY DEFINER `audit.purge_old` that never deletes un-checkpointed batches and
+  respects legal holds; runtime role is append-only on `audit.event` (no UPDATE/DELETE)
 - BCrypt local identity, expiring MFA challenge and hashed opaque sessions
 - login, MFA, current-user and logout APIs
 - security audit records with correlation ID propagation

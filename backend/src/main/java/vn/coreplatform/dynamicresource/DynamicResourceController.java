@@ -22,7 +22,7 @@ import vn.coreplatform.permission.RequirePermission;
 
 @RestController @RequestMapping("/api/v1/dynamic")
 public class DynamicResourceController {
-  private final JdbcTemplate jdbc;private final PermissionService permissions;private final ResourceRegistry resources; public DynamicResourceController(JdbcTemplate jdbc,PermissionService permissions,ResourceRegistry resources){this.jdbc=jdbc;this.permissions=permissions;this.resources=resources;}
+  private final JdbcTemplate jdbc;private final PermissionService permissions;private final ResourceRegistry resources;private final vn.coreplatform.audit.AuditService audits; public DynamicResourceController(JdbcTemplate jdbc,PermissionService permissions,ResourceRegistry resources,vn.coreplatform.audit.AuditService audits){this.jdbc=jdbc;this.permissions=permissions;this.resources=resources;this.audits=audits;}
   public record Definition(UUID id,String resourceKey,String name,int version,JsonNode schema,String status,String dataClassification,Instant updatedAt){}
   public record RecordItem(UUID id,String resourceKey,JsonNode data,int version,String status,UUID ownerSubjectId,Instant createdAt,Instant updatedAt){}
   public record Revision(UUID id,int version,String operation,JsonNode data,UUID actorId,Instant occurredAt){}

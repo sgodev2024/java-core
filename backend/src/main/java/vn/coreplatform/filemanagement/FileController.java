@@ -19,8 +19,8 @@ import vn.coreplatform.permission.PermissionService;
 
 @RestController @RequestMapping("/api/v1/files")
 public class FileController {
-  private final JdbcTemplate jdbc;private final PermissionService permissions;private final Path root;
-  public FileController(JdbcTemplate jdbc,PermissionService permissions,@Value("${core.file-storage-root:/data/files}") String root)throws IOException{this.jdbc=jdbc;this.permissions=permissions;this.root=Path.of(root).toAbsolutePath().normalize();Files.createDirectories(this.root);}
+  private final JdbcTemplate jdbc;private final PermissionService permissions;private final vn.coreplatform.audit.AuditService audits;private final Path root;
+  public FileController(JdbcTemplate jdbc,PermissionService permissions,vn.coreplatform.audit.AuditService audits,@Value("${core.file-storage-root:/data/files}") String root)throws IOException{this.jdbc=jdbc;this.permissions=permissions;this.audits=audits;this.root=Path.of(root).toAbsolutePath().normalize();Files.createDirectories(this.root);}
   public record FileItem(UUID id,String name,String mediaType,long sizeBytes,String classification,String status,String checksumSha256,Instant createdAt,Instant updatedAt){}
   public record PageResult(List<FileItem> items,int page,int size,long total){}
 
