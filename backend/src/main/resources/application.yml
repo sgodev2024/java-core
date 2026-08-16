@@ -35,3 +35,13 @@ core:
   outbox.max-attempts: ${CORE_OUTBOX_MAX_ATTEMPTS:5}
   outbox.poll-interval-ms: ${CORE_OUTBOX_POLL_MS:5000}
   outbox.initial-delay-ms: ${CORE_OUTBOX_INITIAL_DELAY_MS:3000}
+  jobs.enabled: ${CORE_JOBS_ENABLED:false}
+  jobs.scheduler-enabled: ${CORE_JOBS_SCHEDULER_ENABLED:false}
+  jobs.batch-size: ${CORE_JOBS_BATCH_SIZE:10}
+  jobs.max-attempts: ${CORE_JOBS_MAX_ATTEMPTS:5}
+  jobs.worker-lease-seconds: ${CORE_JOBS_LEASE_SECONDS:30}
+  jobs.leader-lease-seconds: ${CORE_JOBS_LEADER_LEASE_SECONDS:15}
+  jobs.poll-interval-ms: ${CORE_JOBS_POLL_MS:5000}
+  jobs.initial-delay-ms: ${CORE_JOBS_INITIAL_DELAY_MS:4000}
+  jobs.scheduler-poll-ms: ${CORE_JOBS_SCHEDULER_POLL_MS:5000}
+  jobs.scheduler-initial-delay-ms: ${CORE_JOBS_SCHEDULER_INITIAL_DELAY_MS:5000}

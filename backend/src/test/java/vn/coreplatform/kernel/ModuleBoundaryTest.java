@@ -18,7 +18,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * phải làm rule fail — chứng minh rule thật sự bắt được lỗi, không phải rule suông.
  */
 class ModuleBoundaryTest {
-  static final List<String> MODULES = List.of("identity", "permission", "dynamicresource", "filemanagement", "controlplane", "audit", "eventing");
+  static final List<String> MODULES = List.of("identity", "permission", "dynamicresource", "filemanagement", "controlplane", "audit", "eventing", "jobs");
   static JavaClasses productionClasses;
 
   @BeforeAll static void importProductionCode() {
@@ -30,8 +30,8 @@ class ModuleBoundaryTest {
   static List<ArchRule> forbiddenPairs() {
     var rules = new ArrayList<ArchRule>();
     for (var from : MODULES) for (var to : MODULES) {
-      // permission (PDP) và audit (audit trail dùng chung) là hợp đồng dùng chung
-      if (from.equals(to) || to.equals("permission") || to.equals("audit") || to.equals("eventing")) continue;
+      // permission (PDP), audit, eventing, jobs là hợp đồng dùng chung
+      if (from.equals(to) || to.equals("permission") || to.equals("audit") || to.equals("eventing") || to.equals("jobs")) continue;
       rules.add(noClasses().that().resideInAPackage(".." + from + "..")
           .should().dependOnClassesThat().resideInAPackage(".." + to + "..")
           .because("module chỉ được phụ thuộc kernel/shared/security/permission/audit, không chạm module khác"));

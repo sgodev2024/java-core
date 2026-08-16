@@ -25,6 +25,8 @@ services:
       CORE_BOOTSTRAP_MFA_CODE: "123456"
       CORE_MFA_ALLOW_BOOTSTRAP: "true"
       CORE_OUTBOX_ENABLED: "true"
+      CORE_JOBS_ENABLED: "true"
+      CORE_JOBS_SCHEDULER_ENABLED: "true"
     ports: ["8080:8080"]
     volumes: ["core_fileroot:/data/files"]
     depends_on:

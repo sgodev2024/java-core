@@ -21,8 +21,9 @@ public class ControlPlaneController {
   private final JdbcTemplate jdbc;
   private final vn.coreplatform.kernel.ResourceRegistry resources;
   private final vn.coreplatform.audit.AuditService audits;
+  private final vn.coreplatform.jobs.JobService jobs;
   private final vn.coreplatform.eventing.OutboxService outbox;
-  public ControlPlaneController(JdbcTemplate jdbc, vn.coreplatform.kernel.ResourceRegistry resources, vn.coreplatform.audit.AuditService audits, vn.coreplatform.eventing.OutboxService outbox){this.jdbc=jdbc;this.resources=resources;this.audits=audits;this.outbox=outbox;}
+  public ControlPlaneController(JdbcTemplate jdbc, vn.coreplatform.kernel.ResourceRegistry resources, vn.coreplatform.audit.AuditService audits, vn.coreplatform.eventing.OutboxService outbox, vn.coreplatform.jobs.JobService jobs){this.jdbc=jdbc;this.resources=resources;this.audits=audits;this.outbox=outbox;this.jobs=jobs;}
 
   public record Summary(long resources,long modules,long pendingOutbox,long runningJobs,long files,double storageGb,String coreVersion,String environment){}
   public record Module(UUID id,String name,String moduleKey,String version,String status,String description,String metric){}
@@ -84,13 +85,62 @@ public class ControlPlaneController {
     return jdbc.queryForObject("select * from identity.role_summary where id=?",(r,n)->role(r),id);
   }
 
+  // ---- E7: job queue + scheduler administration (Platform Admin) ----
+  public record JobItem(UUID id,String tenantKey,String jobType,String status,int attempts,String leasedBy,Instant availableAt,String lastError,Instant createdAt){}
+  public record ScheduleItem(UUID id,String tenantKey,String jobType,int intervalSeconds,int misfireGraceSeconds,boolean enabled,Instant lastFiredAt,Instant createdAt){}
+  public record ScheduleCreate(@NotBlank String tenantKey,@NotBlank String jobType,String payload,@Min(1) int intervalSeconds,Integer misfireGraceSeconds){}
+
+  @GetMapping("/jobs")
+  java.util.List<JobItem> jobs(@RequestParam(defaultValue="") String status, Authentication auth) {
+    requireAdmin(auth);
+    var safe = status == null ? "" : status.replaceAll("[^A-Z_]", "");
+    return safe.isBlank()
+        ? jdbc.query("select * from async.job order by created_at desc limit 100",(r,n)->job(r))
+        : jdbc.query("select * from async.job where status=? order by created_at desc limit 100",(r,n)->job(r),safe);
+  }
+
   @PostMapping("/jobs/{id}/retry") @Transactional
-  Activity retryJob(@PathVariable UUID id,Authentication auth){
-    requireAdmin(auth); int changed=jdbc.update("update async.job set status='PENDING',attempts=attempts+1 where id=? and status in ('FAILED','RETRYING') and attempts<max_attempts",id);
-    if(changed==0) throw new ApiProblem(HttpStatus.CONFLICT,"JOB_NOT_RETRYABLE","Job không tồn tại hoặc không thể retry");
-    var activityId=UUID.randomUUID(); jdbc.update("insert into platform.activity(id,kind,name,metadata,status) select ?, 'JOB',job_type,'manual retry','PENDING' from async.job where id=?",activityId,id);
+  JobItem retryJob(@PathVariable UUID id,Authentication auth){
+    requireAdmin(auth);
+    jobs.requeue(id);
     audit(auth,"JOB_RETRIED","JOB",id.toString(),"SUCCESS");
-    return jdbc.queryForObject("select * from platform.activity where id=?",(r,n)->activity(r),activityId);
+    return jdbc.queryForObject("select * from async.job where id=?",(r,n)->job(r),id);
+  }
+
+  @PostMapping("/jobs/{id}/cancel") @Transactional
+  JobItem cancelJob(@PathVariable UUID id,Authentication auth){
+    requireAdmin(auth);
+    jobs.cancel(id);
+    audit(auth,"JOB_CANCELLED","JOB",id.toString(),"SUCCESS");
+    return jdbc.queryForObject("select * from async.job where id=?",(r,n)->job(r),id);
+  }
+
+  @GetMapping("/job-schedules")
+  java.util.List<ScheduleItem> schedules(Authentication auth) {
+    requireAdmin(auth);
+    return jdbc.query("select * from async.job_schedule order by created_at desc",(r,n)->schedule(r));
+  }
+
+  @PostMapping("/job-schedules") @ResponseStatus(HttpStatus.CREATED) @Transactional
+  ScheduleItem createSchedule(@Valid @RequestBody ScheduleCreate request,Authentication auth){
+    requireAdmin(auth);
+    var id=UUID.randomUUID();
+    var grace=request.misfireGraceSeconds()==null?60:request.misfireGraceSeconds();
+    jdbc.update("insert into async.job_schedule(id,tenant_key,job_type,payload,interval_seconds,misfire_grace_seconds) values(?,?,?,?::jsonb,?,?)",
+        id,request.tenantKey(),request.jobType(),request.payload()==null||request.payload().isBlank()?"{}":request.payload(),request.intervalSeconds(),grace);
+    audit(auth,"JOB_SCHEDULE_CREATED","SCHEDULE",id.toString(),"SUCCESS");
+    return jdbc.queryForObject("select * from async.job_schedule where id=?",(r,n)->schedule(r),id);
+  }
+
+  private JobItem job(java.sql.ResultSet r)throws java.sql.SQLException{
+    return new JobItem(r.getObject("id",UUID.class),r.getString("tenant_key"),r.getString("job_type"),r.getString("status"),
+        r.getInt("attempts"),r.getString("leased_by"),r.getTimestamp("available_at")==null?null:r.getTimestamp("available_at").toInstant(),
+        r.getString("last_error"),r.getTimestamp("created_at").toInstant());
+  }
+  private ScheduleItem schedule(java.sql.ResultSet r)throws java.sql.SQLException{
+    return new ScheduleItem(r.getObject("id",UUID.class),r.getString("tenant_key"),r.getString("job_type"),r.getInt("interval_seconds"),
+        r.getInt("misfire_grace_seconds"),r.getBoolean("enabled"),r.getTimestamp("last_fired_at")==null?null:r.getTimestamp("last_fired_at").toInstant(),
+        r.getTimestamp("created_at").toInstant());
   }
 
   @PutMapping("/settings") @Transactional

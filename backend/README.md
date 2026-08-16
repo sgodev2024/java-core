@@ -73,6 +73,13 @@ The suite covers the auth/MFA/session cycle, permission decisions (ownerOnly sco
   (DLQ) after max attempts, inbox table making consumer side effects exactly-once per
   (consumer, event), audited replay that cannot double-apply, and an activity projector as the
   built-in sample consumer; relay enabled in docker via `CORE_OUTBOX_ENABLED`
+- Jobs & scheduler (E7): job queue with mandatory tenant (enqueue fails closed without one),
+  worker claims via `FOR UPDATE SKIP LOCKED` leases with heartbeat (dead workers' jobs are
+  safely reclaimed), retry classification (non-retryable errors go straight to DEAD; retryable
+  ones back off exponentially with jitter up to max attempts), cancel/requeue operations, and a
+  scheduler with leader election on a database lease — two schedulers create exactly one job
+  instance per slot (idempotency key); `audit.checkpoint` runs the E5 hash-chain checkpoint as
+  the first real recurring job; enabled in docker via `CORE_JOBS_ENABLED`/`CORE_JOBS_SCHEDULER_ENABLED`
 - BCrypt local identity, expiring MFA challenge and hashed opaque sessions
 - login, MFA, current-user and logout APIs
 - security audit records with correlation ID propagation
