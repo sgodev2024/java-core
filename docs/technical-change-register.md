@@ -58,10 +58,11 @@ Phần quyết định kỹ thuật được cập nhật có chủ đích trong
 ## 5. Lịch sử thay đổi tự động
 
 <!-- AUTO-GENERATED:START -->
-> Sinh tự động từ Git. Mốc mã gần nhất: `89e36e68ab5628d63bc7fafe888b48c5d120937d` (2026-08-17). Không sửa trực tiếp phần này.
+> Sinh tự động từ Git. Mốc mã gần nhất: `e63edc07782810aac19415d0a0900aa1140ace4a` (2026-08-17). Không sửa trực tiếp phần này.
 
 | Ngày | Commit | Nội dung | Tác giả | Số file |
 |---|---|---|---|---:|
+| 2026-08-17 | [`e63edc0`](https://github.com/sgodev2024/java-core/commit/e63edc07782810aac19415d0a0900aa1140ace4a) | Migrate frontend to Next.js and add MFA feature flag | SGO Development | 35 |
 | 2026-08-17 | [`89e36e6`](https://github.com/sgodev2024/java-core/commit/89e36e68ab5628d63bc7fafe888b48c5d120937d) | Add workspace-based dynamic navigation registry | SGO Development | 15 |
 | 2026-08-16 | [`3741888`](https://github.com/sgodev2024/java-core/commit/3741888b8abde726d06438e75f5423150b737d1a) | Add sample domain, full-text search, SSRF-guarded webhooks, CSV idempotency and SBOM (E10+E11+E13) | sgodev2024 | 14 |
 | 2026-08-16 | [`3e9eb18`](https://github.com/sgodev2024/java-core/commit/3e9eb18be31f3dac682450c6810f7dd152f2780f) | Add file lifecycle (staging/scan/finalize/reconcile) and dynamic resource hardening (E8+E9) | sgodev2024 | 9 |
@@ -90,6 +91,48 @@ Phần quyết định kỹ thuật được cập nhật có chủ đích trong
 | 2026-08-15 | [`295b0e6`](https://github.com/sgodev2024/java-core/commit/295b0e6d6b200c9cd17cfe23d11683f8d04d19e8) | Initialize Java Core Platform | SGO Development | 57 |
 
 ## Chi tiết file theo commit
+
+### 2026-08-17 — Migrate frontend to Next.js and add MFA feature flag
+
+- Commit: [`e63edc07782810aac19415d0a0900aa1140ace4a`](https://github.com/sgodev2024/java-core/commit/e63edc07782810aac19415d0a0900aa1140ace4a)
+- Tác giả: SGO Development
+- Phạm vi file:
+
+- `A` `.github/workflows/technical-change-log.yml`
+- `M` `README.md`
+- `M` `backend/.env.example`
+- `M` `backend/README.md`
+- `M` `backend/src/main/java/vn/coreplatform/identity/AuthController.java`
+- `M` `backend/src/main/resources/application.yml`
+- `M` `backend/src/test/java/vn/coreplatform/AbstractApiTest.java`
+- `A` `backend/src/test/java/vn/coreplatform/identity/MfaDisabledLoginTest.java`
+- `M` `deploy/ubuntu20/core-platform.env.example`
+- `M` `docker-compose.yml`
+- `A` `docs/technical-change-register.md`
+- `M` `frontend/.dockerignore`
+- `M` `frontend/.gitignore`
+- `D` `frontend/.openai/hosting.json`
+- `M` `frontend/Dockerfile`
+- `M` `frontend/README.md`
+- `D` `frontend/app/chatgpt-auth.ts`
+- `M` `frontend/app/globals.css`
+- `M` `frontend/app/layout.tsx`
+- `M` `frontend/app/page.tsx`
+- `D` `frontend/build/sites-vite-plugin.ts`
+- `D` `frontend/db/index.ts`
+- `D` `frontend/db/schema.ts`
+- `D` `frontend/drizzle.config.ts`
+- `D` `frontend/drizzle/meta/_journal.json`
+- `M` `frontend/eslint.config.mjs`
+- `D` `frontend/examples/d1/app/api/notes/route.ts`
+- `D` `frontend/examples/d1/db/schema.ts`
+- `M` `frontend/next.config.ts`
+- `M` `frontend/package-lock.json`
+- `M` `frontend/package.json`
+- `M` `frontend/tests/rendered-html.test.mjs`
+- `D` `frontend/vite.config.ts`
+- `D` `frontend/worker/index.ts`
+- `A` `scripts/update-technical-change-log.mjs`
 
 ### 2026-08-17 — Add workspace-based dynamic navigation registry
 
