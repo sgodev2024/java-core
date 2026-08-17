@@ -26,6 +26,22 @@ Registry fail startup khi có duplicate key, namespace module sai, section/paren
 
 Section nghiệp vụ được đặt trước. Quản trị hệ thống luôn ở cuối sidebar. Không tạo một section/Workspace riêng cho từng module chỉ để chứa một vài page.
 
+Section `business` là vùng mở rộng chuẩn chờ sẵn cho toàn bộ nghiệp vụ khách hàng. Module đăng ký group/page theo domain của mình trong section này; không đưa page nghiệp vụ vào `system-administration`. Group rỗng bị loại khỏi manifest, vì vậy Production vẫn có vùng Nghiệp vụ và Trang chủ nhưng không hiển thị menu mẫu.
+
+## Tách module demo/test
+
+`approval-domain` là sample module kiểm chứng kiến trúc, không thuộc Production Core. Backend module, controller và metadata initializer nằm trong package `vn.coreplatform.demo.approval` và chỉ active với Spring profile `demo` hoặc `test`. Frontend view nằm trong lazy chunk `app/demo/approval-workspace.tsx` và chỉ được tải khi manifest có view `approvals`.
+
+Trong profile demo/test, cây đóng góp là:
+
+```text
+Nghiệp vụ
+└── Nghiệp vụ mẫu
+    └── Đề nghị phê duyệt
+```
+
+Production migration và startup guard loại metadata legacy của `approval-domain` khỏi catalog nhưng không drop bảng/dữ liệu, bảo đảm rollback. Module nghiệp vụ khách hàng phải dùng module key, namespace, migration và permission riêng.
+
 ## Cấu trúc ba cấp
 
 Cây hợp lệ duy nhất:

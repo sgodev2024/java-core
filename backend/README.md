@@ -2,6 +2,14 @@
 
 Java 21 / Spring Boot runtime implementing the first production slice of the approved Core Platform specification.
 
+## Runtime profiles
+
+- `production` (hoặc không đặt profile): chỉ nạp Core/module Production; `approval-domain` và `/api/v1/approvals` không tồn tại trong runtime manifest.
+- `demo`: bật module mẫu Approval Domain, group `Nghiệp vụ mẫu` và metadata minh họa.
+- `test`: bật module mẫu để chạy integration test; không dùng cho deployment khách hàng.
+
+Module mẫu nằm riêng tại `vn.coreplatform.demo.approval`. Migration giữ schema để rollback, còn metadata demo được startup guard loại khỏi Production catalog.
+
 ## Run locally
 
 From the workspace root:

@@ -18,7 +18,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * phải làm rule fail — chứng minh rule thật sự bắt được lỗi, không phải rule suông.
  */
 class ModuleBoundaryTest {
-  static final List<String> MODULES = List.of("identity", "permission", "dynamicresource", "filemanagement", "controlplane", "audit", "eventing", "jobs", "domain", "webhook");
+  static final List<String> MODULES = List.of("identity", "permission", "dynamicresource", "filemanagement", "controlplane", "audit", "eventing", "jobs", "demo", "webhook");
   static JavaClasses productionClasses;
 
   @BeforeAll static void importProductionCode() {
@@ -46,7 +46,7 @@ class ModuleBoundaryTest {
   @Test void kernelMustNotDependOnBusinessModules() {
     noClasses().that().resideInAPackage("..kernel..")
         .should().dependOnClassesThat().resideInAnyPackage(
-            "..identity..", "..permission..", "..dynamicresource..", "..filemanagement..", "..controlplane..", "..audit..", "..eventing..")
+            "..identity..", "..permission..", "..dynamicresource..", "..filemanagement..", "..controlplane..", "..audit..", "..eventing..", "..demo..")
         .because("kernel phải trung tính nghiệp vụ (risk: kernel phình thành business framework)")
         .check(productionClasses);
   }
@@ -54,7 +54,7 @@ class ModuleBoundaryTest {
   @Test void sharedMustNotDependOnModules() {
     noClasses().that().resideInAPackage("..shared..")
         .should().dependOnClassesThat().resideInAnyPackage(
-            "..identity..", "..permission..", "..dynamicresource..", "..filemanagement..", "..controlplane..", "..audit..", "..eventing..", "..kernel..")
+            "..identity..", "..permission..", "..dynamicresource..", "..filemanagement..", "..controlplane..", "..audit..", "..eventing..", "..demo..", "..kernel..")
         .check(productionClasses);
   }
 

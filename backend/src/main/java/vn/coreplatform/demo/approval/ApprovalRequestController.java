@@ -1,4 +1,4 @@
-package vn.coreplatform.domain;
+package vn.coreplatform.demo.approval;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.validation.Valid;
@@ -6,6 +6,7 @@ import jakarta.validation.constraints.*;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.*;
+import org.springframework.context.annotation.Profile;
 import org.springframework.http.*;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.Authentication;
@@ -22,6 +23,7 @@ import static vn.coreplatform.shared.ApiExceptionHandler.ApiProblem;
  * hoạt động độc lập với Dynamic Resource (Plane 2), KHÔNG đi qua Generic CRUD.
  * Domain invariants: state machine DRAFT→SUBMITTED→APPROVED/REJECTED, CANCELLED chỉ từ DRAFT/SUBMITTED.
  */
+@Profile({"demo", "test"})
 @RestController @RequestMapping("/api/v1/approvals")
 public class ApprovalRequestController {
   private final JdbcTemplate jdbc;

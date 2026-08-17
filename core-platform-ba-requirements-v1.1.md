@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 |---|---|
 | Mã tài liệu | `CP-BA-001` |
-| Phiên bản | `1.1.2` |
+| Phiên bản | `1.1.3` |
 | Trạng thái | Approved |
 | Ngày lập | 2026-08-17 |
 | Ngày cập nhật | 2026-08-17 |
@@ -549,7 +549,7 @@ Phiên bản 1.1 làm rõ sản phẩm ở giai đoạn hiện tại là hệ th
 
 Tài khoản có quyền cao nhất được hiển thị bằng thuật ngữ **Quản trị viên hệ thống (System Administrator)**. Mã vai trò legacy `PLATFORM_ADMIN` được giữ trong backend để tương thích dữ liệu và API hiện tại; frontend không dùng tên này làm nhãn nghiệp vụ.
 
-### 24.2 Mười ba quyết định frontend đã phê duyệt
+### 24.2 Mười bốn quyết định frontend đã phê duyệt
 
 | ID | Quyết định baseline | Hệ quả bắt buộc |
 |---|---|---|
@@ -566,6 +566,7 @@ Tài khoản có quyền cao nhất được hiển thị bằng thuật ngữ *
 | FE-BA-11 | Quản trị tổ chức và truy cập là capability của deployment | Frontend có màn hình Người dùng, Cơ cấu tổ chức, Vai trò & phân quyền nối API thật; không dùng số liệu mẫu cố định làm dữ liệu vận hành. |
 | FE-BA-12 | Trải nghiệm phải theo quyền và đáp ứng thiết bị | Sidebar, tìm kiếm lệnh, yêu thích, trạng thái rỗng/lỗi/tải và mobile layout dùng cùng manifest đã được backend lọc. |
 | FE-BA-13 | Menu tác vụ cá nhân hiển thị theo capability tham gia xử lý nhiệm vụ được giao | Core không đăng ký sẵn `Công việc của tôi`. Module có hộp việc thật mới được đăng ký item `ASSIGNMENT`; item này luôn qua Permission Decision Point bằng policy đúng resource/action, kể cả System Administrator. Quyền wildcard quản trị không làm phát sinh menu tác vụ cá nhân. |
+| FE-BA-14 | Nghiệp vụ tách khỏi Production Core và tập trung trong section Nghiệp vụ | Section `business` là vùng mở rộng chuẩn, tương đương vai trò phân khu của `system-administration`. Module mẫu `approval-domain` chỉ được nạp ở profile `demo`/`test`, nằm trong group `Nghiệp vụ mẫu`; Production không đăng ký menu, API hoặc metadata của module này. |
 
 ### 24.3 Kiến trúc thông tin được phê duyệt
 
@@ -582,8 +583,9 @@ Cấu trúc tham chiếu:
 Ứng dụng
 ├── Nghiệp vụ
 │   ├── Trang chủ
-│   ├── Đề nghị phê duyệt
-│   └── [Group/Page do module đăng ký]
+│   ├── Nghiệp vụ mẫu [chỉ demo/test]
+│   │   └── Đề nghị phê duyệt
+│   └── [Group/Page do module nghiệp vụ đăng ký]
 └── Quản trị hệ thống
     ├── Nền tảng
     │   ├── Quản lý module
@@ -606,7 +608,7 @@ Không được tạo một Workspace riêng cho từng module. Khi số module 
 |---|---:|---:|---:|
 | Trang chủ và module được cấp quyền | Có | Có | Có |
 | Công việc của tôi | Chỉ khi có capability/nhiệm vụ | Chỉ khi có capability/nhiệm vụ | Chỉ khi có capability/nhiệm vụ |
-| Đề nghị phê duyệt | Theo policy nghiệp vụ | Theo policy nghiệp vụ | Theo policy nghiệp vụ |
+| Đề nghị phê duyệt | Chỉ demo/test + policy | Chỉ demo/test + policy | Chỉ demo/test + policy |
 | Quản trị hệ thống | Có | Không mặc định | Không |
 | Người dùng/tổ chức/vai trò | Có | Chỉ khi được cấp quyền quản trị | Không |
 | Tenant/customer switcher | Không | Không | Không |
@@ -625,6 +627,17 @@ Menu chỉ là cơ chế khám phá. Việc không hiển thị menu không thay
 | FE-BR-013-06 | API hộp việc phải lọc theo account/organization assignment và kiểm tra permission độc lập. Ẩn menu, badge hoặc kiểm tra tại frontend không thay thế PEP ở backend. |
 | FE-BR-013-07 | Truy cập trực tiếp một route không có trong navigation manifest hiệu lực phải được frontend đưa về page hợp lệ đầu tiên; API đích vẫn trả `403` nếu bị gọi trực tiếp. |
 
+### 24.4.2 Ranh giới module nghiệp vụ mẫu và Production Core
+
+| ID | Quy tắc đã duyệt |
+|---|---|
+| FE-BR-014-01 | `business` là section chuẩn luôn tồn tại cùng Trang chủ; mọi module nghiệp vụ khách hàng đăng ký group/page vào section này, không đặt trong `system-administration`. |
+| FE-BR-014-02 | Module mẫu nằm trong package/chunk riêng và phải gắn profile `demo`/`test`; profile `production` hoặc không khai báo profile không được nạp module, controller hay navigation contributor mẫu. |
+| FE-BR-014-03 | `approval-domain` đóng góp group `Nghiệp vụ mẫu` và page `Đề nghị phê duyệt`; group tự biến mất khi module không hoạt động hoặc người dùng không có page được phép. |
+| FE-BR-014-04 | Production migration/guard loại metadata `approval-domain` cũ khỏi module/resource catalog nhưng giữ bảng và dữ liệu để rollback an toàn. |
+| FE-BR-014-05 | Frontend demo được tách thành lazy chunk và chỉ render khi backend trả view `approvals` trong manifest hiệu lực. Direct URL không được tự kích hoạt module mẫu. |
+| FE-BR-014-06 | Module nghiệp vụ thật của khách hàng có lifecycle, permission, migration và ownership riêng; không kế thừa namespace hoặc dữ liệu của module demo. |
+
 ### 24.5 Yêu cầu chức năng frontend v1.1
 
 | ID | Yêu cầu |
@@ -640,6 +653,7 @@ Menu chỉ là cơ chế khám phá. Việc không hiển thị menu không thay
 | FE-FR-009 | Tải trực tiếp mọi route đã đăng ký phải trả về application shell hợp lệ. |
 | FE-FR-010 | Giao diện dùng thuật ngữ Quản trị viên hệ thống; `PLATFORM_ADMIN` chỉ là mã tương thích kỹ thuật. |
 | FE-FR-011 | Trang chủ không hiển thị dải thông tin tĩnh về tên môi trường, phiên bản Core, loại database và mô hình deployment; thông tin vận hành chi tiết phải đặt tại capability quản trị phù hợp khi có nhu cầu. |
+| FE-FR-012 | Production Core chỉ hiển thị section Nghiệp vụ và module thực được đóng gói/bật; `approval-domain` cùng API `/api/v1/approvals` chỉ tồn tại khi chạy profile `demo` hoặc `test`. |
 
 ### 24.6 Contract Navigation v1.1
 
@@ -689,6 +703,8 @@ Quy tắc:
 - [x] Tenant/SaaS control plane không xuất hiện trong frontend dedicated deployment.
 - [x] MFA có feature flag deployment và đang được tắt tạm thời theo quyết định vận hành hiện tại.
 - [x] Trang chủ không còn dải thông tin tĩnh về môi trường, phiên bản Core, database và mô hình deployment.
+- [x] `approval-domain` được tách package/profile và không xuất hiện trong navigation/module/resource catalog của Production Core.
+- [x] Section Nghiệp vụ được giữ làm vùng mở rộng; trong demo, Đề nghị phê duyệt nằm dưới group Nghiệp vụ mẫu.
 - [ ] Kiểm thử nghiệm thu trên Production sau khi triển khai release v1.1.
 - [ ] Technical Lead và Security Approver ký xác nhận release.
 
@@ -702,11 +718,12 @@ Quy tắc:
 | FE-BA-13, FE-BR-013-01–07 | `visibilityMode=ASSIGNMENT` + `NavigationVisibilityPolicy` + PDP + route guard | Registry validation, admin-bypass negative test, frontend no-hardcode test và direct-route fallback |
 | FE-FR-004–005 | Access Management API + admin pages | Integration test và Production smoke test |
 | FE-FR-011 | Loại bỏ deployment environment summary strip khỏi Trang chủ | Frontend source guard test và Production visual smoke test |
+| FE-BA-14, FE-BR-014-01–06, FE-FR-012 | Profile-gated demo backend + business section/group + lazy frontend chunk + metadata cleanup | Profile test, navigation test, Production API/menu negative smoke test |
 
 ## 25. Phê duyệt thay đổi v1.1
 
 | Vai trò | Quyết định | Ngày |
 |---|---|---|
-| Product Owner / Project Sponsor | Approved FE-BA-01 đến FE-BA-13 | 2026-08-17 |
+| Product Owner / Project Sponsor | Approved FE-BA-01 đến FE-BA-14 | 2026-08-17 |
 | Technical Lead | Pending release verification | |
 | Security Approver | Pending release verification | |

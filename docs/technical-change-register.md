@@ -63,6 +63,9 @@ Phần quyết định kỹ thuật được cập nhật có chủ đích trong
 - Chỉ số hard-code ở khu vực truy cập và latency đã được thay bằng dữ liệu backend hoặc loại bỏ.
 - Trang chủ dùng nội dung theo ngữ cảnh: System Administrator thấy tổng quan vận hành; người dùng khác thấy module nghiệp vụ được cấp quyền.
 - Loại bỏ dải thông tin tĩnh `Môi trường / Phiên bản Core / Database / Mô hình vận hành` khỏi cuối Trang chủ theo FE-FR-011; xóa đồng thời CSS responsive không còn sử dụng và có source guard test chống xuất hiện lại.
+- Tách `approval-domain` sang package `vn.coreplatform.demo.approval`; module contributor, controller và metadata chỉ active ở profile `demo`/`test`. Production guard cùng migration V17 loại metadata legacy nhưng giữ bảng/dữ liệu để rollback.
+- Section `business` là vùng Nghiệp vụ chuẩn chờ module khách hàng. Trong demo/test, `Đề nghị phê duyệt` nằm dưới group `Nghiệp vụ mẫu`; Production loại group/page rỗng khỏi manifest.
+- Frontend approval demo được tách thành lazy chunk `app/demo/approval-workspace.tsx`; shell chỉ tải khi backend manifest cho phép view `approvals`.
 - Tài liệu BA chuẩn là `core-platform-ba-requirements-v1.1.md`; v1.0 chỉ còn giá trị lịch sử.
 
 ## 4. Quy tắc cập nhật tài liệu

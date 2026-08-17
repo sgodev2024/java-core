@@ -1,4 +1,4 @@
-package vn.coreplatform.domain;
+package vn.coreplatform.demo.approval;
 
 import org.junit.jupiter.api.Test;
 import vn.coreplatform.AbstractApiTest;

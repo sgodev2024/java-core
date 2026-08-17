@@ -13,6 +13,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -28,6 +29,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
+@ActiveProfiles("test")
 @org.springframework.test.context.TestPropertySource(properties = "core.mfa.allow-bootstrap=true")
 public abstract class AbstractApiTest {
   public static final String MFA_CODE = "246810";

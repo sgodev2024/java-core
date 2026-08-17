@@ -59,3 +59,11 @@ test("home page does not render the deployment environment summary strip", async
   assert.doesNotMatch(source, /environment-panel|Mô hình vận hành|Dedicated deployment<\/small>/i);
   assert.doesNotMatch(styles, /environment-panel|environment-label/i);
 });
+
+test("approval demo is isolated from the production application shell", async () => {
+  const shell = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const demo = await readFile(new URL("../app/demo/approval-workspace.tsx", import.meta.url), "utf8");
+  assert.doesNotMatch(shell, /api\/v1\/approvals/);
+  assert.match(shell, /dynamic\(\(\) => import\("\.\/demo\/approval-workspace"\)/);
+  assert.match(demo, /api\/v1\/approvals/);
+});

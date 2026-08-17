@@ -17,7 +17,8 @@ class NavigationApiTest extends AbstractApiTest {
     assertThat(keys(body.path("sections"))).containsExactly("business", "system-administration");
     assertThat(itemKeys(body, "system-administration")).contains("core.modules", "core.resources", "core.users",
         "core.organizations", "core.access", "core.activity", "core.files", "core.settings");
-    assertThat(itemKeys(body, "business")).contains("core.home", "module.approval-domain.approvals");
+    assertThat(itemKeys(body, "business")).contains("core.home", "module.approval-domain.demo-group",
+        "module.approval-domain.approvals");
     assertThat(body.has("workspaces")).isFalse();
   }
 
@@ -38,7 +39,8 @@ class NavigationApiTest extends AbstractApiTest {
     jdbc.update("update identity.permission_revision set revision=revision+1 where tenant_id=?", tenantId);
     try {
       var after = navigation(token);
-      assertThat(itemKeys(after, "business")).contains("core.home", "module.approval-domain.approvals");
+      assertThat(itemKeys(after, "business")).contains("core.home", "module.approval-domain.demo-group",
+          "module.approval-domain.approvals");
     } finally {
       jdbc.update("delete from identity.role_policy where tenant_id=? and policy_id=?", tenantId, policyId);
       jdbc.update("delete from identity.policy where tenant_id=? and id=?", tenantId, policyId);

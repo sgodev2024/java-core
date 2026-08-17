@@ -6,6 +6,7 @@ Java Core Platform is a business-neutral modular application foundation for buil
 
 - `backend/` — Spring Boot runtime, local identity, MFA, hashed sessions, audit and Control Plane API
 - `frontend/` — Core Platform Control Plane UI
+- `backend/src/main/java/vn/coreplatform/demo/` và `frontend/app/demo/` — module/chunk minh họa chỉ bật bằng profile `demo`/`test`, không thuộc Production Core
 - `deploy/ubuntu20/` — systemd, Nginx, environment and deployment/rollback assets
 - `technical-delivery-pack-v1.0/` — implementation specification, backlog and quality gates
 - `core-platform-ba-requirements-v1.1.md` — approved BA and unified frontend baseline (FE-BA-01..13)
