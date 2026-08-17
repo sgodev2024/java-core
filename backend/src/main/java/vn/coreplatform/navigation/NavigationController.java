@@ -83,8 +83,9 @@ public class NavigationController {
   private Effective effective(Authentication auth) {
     var administrator = hasAuthority(auth, "ROLE_PLATFORM_ADMIN");
     var moduleEnabled = new HashMap<String, Boolean>();
-    jdbc.query("select module_key,status from platform.module", row ->
-        moduleEnabled.put(row.getString(1), !"DISABLED".equals(row.getString(2))));
+    jdbc.query("select module_key,status from platform.module", row -> {
+      moduleEnabled.put(row.getString(1), !"DISABLED".equals(row.getString(2)));
+    });
 
     // NavigationWorkspaceDescriptor được giữ như adapter contributor v1.0; API v1.1 phát ra section thống nhất.
     var visibleSections = new LinkedHashMap<String, NavigationRegistry.WorkspaceRegistration>();
