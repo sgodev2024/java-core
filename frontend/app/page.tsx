@@ -200,12 +200,6 @@ function Overview({ onNavigate, data, displayName }: { onNavigate: (view: View) 
         </aside>
       </div>
 
-      <section className="panel environment-panel">
-        <div><span className="environment-label">Môi trường</span><strong>{summary.environment}</strong><small>Dedicated deployment</small></div>
-        <div><span>Phiên bản Core</span><strong>{summary.coreVersion}</strong></div>
-        <div><span>Database</span><strong><StatusDot /> PostgreSQL</strong></div>
-        <div><span>Mô hình vận hành</span><strong>Một khách hàng / một deployment</strong></div>
-      </section>
     </>
   );
 }

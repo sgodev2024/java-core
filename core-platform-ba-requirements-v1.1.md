@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 |---|---|
 | Mã tài liệu | `CP-BA-001` |
-| Phiên bản | `1.1.1` |
+| Phiên bản | `1.1.2` |
 | Trạng thái | Approved |
 | Ngày lập | 2026-08-17 |
 | Ngày cập nhật | 2026-08-17 |
@@ -639,6 +639,7 @@ Menu chỉ là cơ chế khám phá. Việc không hiển thị menu không thay
 | FE-FR-008 | Đăng xuất phải thu hồi phiên ở backend khi có thể, xóa token cục bộ và trở về màn hình đăng nhập. |
 | FE-FR-009 | Tải trực tiếp mọi route đã đăng ký phải trả về application shell hợp lệ. |
 | FE-FR-010 | Giao diện dùng thuật ngữ Quản trị viên hệ thống; `PLATFORM_ADMIN` chỉ là mã tương thích kỹ thuật. |
+| FE-FR-011 | Trang chủ không hiển thị dải thông tin tĩnh về tên môi trường, phiên bản Core, loại database và mô hình deployment; thông tin vận hành chi tiết phải đặt tại capability quản trị phù hợp khi có nhu cầu. |
 
 ### 24.6 Contract Navigation v1.1
 
@@ -687,6 +688,7 @@ Quy tắc:
 - [x] Người dùng, cơ cấu tổ chức, vai trò và policy dùng API thật.
 - [x] Tenant/SaaS control plane không xuất hiện trong frontend dedicated deployment.
 - [x] MFA có feature flag deployment và đang được tắt tạm thời theo quyết định vận hành hiện tại.
+- [x] Trang chủ không còn dải thông tin tĩnh về môi trường, phiên bản Core, database và mô hình deployment.
 - [ ] Kiểm thử nghiệm thu trên Production sau khi triển khai release v1.1.
 - [ ] Technical Lead và Security Approver ký xác nhận release.
 
@@ -699,6 +701,7 @@ Quy tắc:
 | FE-BA-09–12 | Next.js App Router + responsive shell | Build, direct-route và browser acceptance |
 | FE-BA-13, FE-BR-013-01–07 | `visibilityMode=ASSIGNMENT` + `NavigationVisibilityPolicy` + PDP + route guard | Registry validation, admin-bypass negative test, frontend no-hardcode test và direct-route fallback |
 | FE-FR-004–005 | Access Management API + admin pages | Integration test và Production smoke test |
+| FE-FR-011 | Loại bỏ deployment environment summary strip khỏi Trang chủ | Frontend source guard test và Production visual smoke test |
 
 ## 25. Phê duyệt thay đổi v1.1
 

@@ -62,6 +62,7 @@ Phần quyết định kỹ thuật được cập nhật có chủ đích trong
 - Trang Vai trò & phân quyền nối `GET/POST /api/v1/access/roles` và `GET /api/v1/access/policies`.
 - Chỉ số hard-code ở khu vực truy cập và latency đã được thay bằng dữ liệu backend hoặc loại bỏ.
 - Trang chủ dùng nội dung theo ngữ cảnh: System Administrator thấy tổng quan vận hành; người dùng khác thấy module nghiệp vụ được cấp quyền.
+- Loại bỏ dải thông tin tĩnh `Môi trường / Phiên bản Core / Database / Mô hình vận hành` khỏi cuối Trang chủ theo FE-FR-011; xóa đồng thời CSS responsive không còn sử dụng và có source guard test chống xuất hiện lại.
 - Tài liệu BA chuẩn là `core-platform-ba-requirements-v1.1.md`; v1.0 chỉ còn giá trị lịch sử.
 
 ## 4. Quy tắc cập nhật tài liệu

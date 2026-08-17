@@ -52,3 +52,10 @@ test("personal task navigation is not hard-coded in the application shell", asyn
   assert.doesNotMatch(source, /Công việc của tôi/i);
   assert.match(source, /api\/v1\/navigation\/me/);
 });
+
+test("home page does not render the deployment environment summary strip", async () => {
+  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.doesNotMatch(source, /environment-panel|Mô hình vận hành|Dedicated deployment<\/small>/i);
+  assert.doesNotMatch(styles, /environment-panel|environment-label/i);
+});
