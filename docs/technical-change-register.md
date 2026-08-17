@@ -26,7 +26,7 @@ Phần quyết định kỹ thuật được cập nhật có chủ đích trong
 - Module đăng ký section/group/page qua `ModuleContributor`; frontend không duy trì danh sách module cố định.
 - Cây điều hướng bị giới hạn ở `Section → Group → Page`; registry fail startup nếu group lồng group.
 - API `GET /api/v1/navigation/me` trả `sections[]` đã lọc theo module status, authority và permission.
-- API `PUT /api/v1/navigation/me/preferences` chỉ lưu yêu thích và mục gần đây; trường Workspace cuối không còn trong contract.
+- API `PUT /api/v1/navigation/me/preferences` chỉ lưu yêu thích và mục gần đây; trường Workspace cuối không còn trong contract, cột legacy được reset chuỗi rỗng để tương thích schema.
 - Route chuyển từ hash sang `/home`, `/business/...`, `/administration/...`; Next.js có route tương ứng để direct load/refresh.
 - Section `system-administration` nằm cuối và chỉ hiện cho `ROLE_PLATFORM_ADMIN`; label người dùng là **Quản trị viên hệ thống**.
 - `NavigationItemDescriptor.visibilityMode=ASSIGNMENT` luôn qua exact-policy PDP, kể cả System Administrator; wildcard `*/*` không được xem là nhiệm vụ được giao (FE-BA-13).

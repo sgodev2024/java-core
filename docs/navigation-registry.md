@@ -148,7 +148,7 @@ Content-Type: application/json
 }
 ```
 
-Backend loại key không còn hiển thị, giới hạn 20 favorite và 10 recent. Cột `last_workspace_key` được giữ tương thích database nhưng API v1.1 không đọc/ghi giá trị Workspace nữa.
+Backend loại key không còn hiển thị, giới hạn 20 favorite và 10 recent. Cột `last_workspace_key` được giữ tương thích database và được reset thành chuỗi rỗng; API v1.1 không công bố hoặc sử dụng giá trị Workspace nữa.
 
 ## Security invariants
 

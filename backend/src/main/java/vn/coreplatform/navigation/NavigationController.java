@@ -65,9 +65,9 @@ public class NavigationController {
         : allowedDistinct(request.recentKeys(), effective.itemKeys(), 10);
     jdbc.update("""
         insert into platform.navigation_preference(tenant_id,account_id,favorite_keys,recent_keys,last_workspace_key,updated_at)
-        values (?,?,?::jsonb,?::jsonb,null,now())
+        values (?,?,?::jsonb,?::jsonb,'',now())
         on conflict(tenant_id,account_id) do update set favorite_keys=excluded.favorite_keys,
-          recent_keys=excluded.recent_keys,last_workspace_key=null,updated_at=now()
+          recent_keys=excluded.recent_keys,last_workspace_key='',updated_at=now()
         """, permissions.tenant(auth), permissions.account(auth), write(favorites), write(recents));
     audits.record(permissions.tenantKey(auth), permissions.account(auth), auth.getName(),
         "NAVIGATION_PREFERENCES_UPDATED", "NAVIGATION", null, "SUCCESS", null);
