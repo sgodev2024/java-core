@@ -9,6 +9,7 @@ Java Core Platform is a business-neutral modular application foundation for buil
 - `deploy/ubuntu20/` — systemd, Nginx, environment and deployment/rollback assets
 - `technical-delivery-pack-v1.0/` — implementation specification, backlog and quality gates
 - `core-platform-*-v1.0.md` — approved BA, runtime and database architecture documents
+- `docs/navigation-registry.md` — Workspace, dynamic menu manifest, security and extension contract
 
 ## Local start
 

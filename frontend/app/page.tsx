@@ -2,9 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-type View = "overview" | "modules" | "resources" | "access" | "activity" | "files" | "settings";
+type View = "business-home" | "approvals" | "overview" | "modules" | "resources" | "access" | "activity" | "files" | "settings";
 type AuthStep = "login" | "mfa";
 const API_URL = process.env.NEXT_PUBLIC_CORE_API_URL ?? "https://api.corejava.sgodata.com";
+type UserInfo = { id: string; email: string; displayName: string; role: string };
+type NavigationItem = { key:string; parentKey:string; ownerModule:string; label:string; labelKey:string; icon:string; type:"GROUP"|"PAGE"; viewKey:string; route:string; sortOrder:number; keywords:string[] };
+type NavigationWorkspace = { key:string; label:string; labelKey:string; icon:string; category:"BUSINESS"|"ADMIN"; sortOrder:number; items:NavigationItem[] };
+type NavigationModel = { revision:string; defaultWorkspaceKey:string; currentWorkspaceKey:string; workspaces:NavigationWorkspace[]; favoriteKeys:string[]; recentKeys:string[] };
 type ModuleItem = { id: string; name: string; moduleKey: string; version: string; status: string; description: string; metric: string };
 type ResourceItem = { id: string; name: string; storageMode: string; ownerModule: string; records: number; schemaVersion: string; updatedAt: string };
 type ActivityItem = { id: string; kind: string; name: string; metadata: string; status: string; occurredAt: string };
@@ -90,17 +94,6 @@ function LoginScreen({ onAuthenticated }: { onAuthenticated: (token: string, rem
   </div>;
 }
 
-const navItems: Array<{ id: View; label: string; icon: string; badge?: string }> = [
-  { id: "overview", label: "Tổng quan", icon: "⌂" },
-  { id: "modules", label: "Modules", icon: "◫", badge: "8" },
-  { id: "resources", label: "Resources", icon: "◇" },
-  { id: "access", label: "Truy cập", icon: "◎" },
-  { id: "activity", label: "Events & Jobs", icon: "↯", badge: "12" },
-  { id: "files", label: "Tệp tin", icon: "▱" },
-  { id: "settings", label: "Cấu hình", icon: "⚙" },
-];
-
-
 function StatusDot({ tone = "teal" }: { tone?: string }) {
   return <span className={`status-dot ${tone}`} aria-hidden="true" />;
 }
@@ -118,14 +111,14 @@ function PageTitle({ eyebrow, title, description, action }: { eyebrow: string; t
   );
 }
 
-function Overview({ onNavigate, data }: { onNavigate: (view: View) => void; data: BootstrapData }) {
+function Overview({ onNavigate, data, displayName }: { onNavigate: (view: View) => void; data: BootstrapData; displayName?: string }) {
   const { summary, activities } = data;
   return (
     <>
       <PageTitle
         eyebrow="Core Control Plane"
-        title="Chào buổi sáng, Minh"
-        description="Hệ thống đang ổn định. Có 12 sự kiện đang chờ xử lý và một cảnh báo cần xem xét."
+        title={`Xin chào, ${displayName || "Platform Administrator"}`}
+        description={`Hệ thống đang hoạt động. Có ${summary.pendingOutbox} sự kiện outbox và ${summary.runningJobs} background job đang xử lý.`}
         action={<button className="primary-button" onClick={() => onNavigate("resources")}><span>＋</span> Tạo resource</button>}
       />
 
@@ -162,7 +155,7 @@ function Overview({ onNavigate, data }: { onNavigate: (view: View) => void; data
           <div className="panel-header"><div><h2>Hoạt động gần đây</h2><p>Luồng sự kiện và tác vụ trên toàn hệ thống</p></div><button className="ghost-button" onClick={() => onNavigate("activity")}>Xem tất cả</button></div>
           <div className="activity-list">
             {activities.slice(0, 4).map((item) => (
-              <div className="activity-row" key={item.title}>
+              <div className="activity-row" key={item.id}>
                 <div className={`activity-icon ${item.kind.toLowerCase()}`}>{item.kind === "EVENT" ? "↯" : "◷"}</div>
                 <div className="activity-main"><strong>{item.name}</strong><span>{item.metadata}</span></div>
                 <span className={`state ${item.status.toLowerCase()}`}>{item.status}</span>
@@ -294,105 +287,95 @@ function Settings({ values, onSave }: { values: Record<string,string>; onSave: (
   );
 }
 
+function BusinessHome({ workspace, onOpen }: { workspace: NavigationWorkspace; onOpen: (item: NavigationItem) => void }) {
+  const pages = workspace.items.filter(item => item.type === "PAGE" && item.viewKey !== "business-home");
+  return <>
+    <PageTitle eyebrow="Business Workspace" title="Không gian nghiệp vụ" description="Các phân hệ được tự động đăng ký từ module đang bật và chỉ hiển thị theo quyền của tài khoản." />
+    <section className="business-hero panel"><div><span className="business-hero-icon">▦</span><p className="eyebrow">Workspace động</p><h2>Chọn phân hệ để bắt đầu</h2><p>Menu nghiệp vụ được tách khỏi Control Plane. Khi cài thêm module, chức năng được đưa vào đúng Workspace mà không sửa Core shell.</p></div><strong>{pages.length}<small>phân hệ được cấp quyền</small></strong></section>
+    <section className="business-module-grid" aria-label="Phân hệ nghiệp vụ">
+      {pages.map(item => <button key={item.key} className="business-module-card" onClick={() => onOpen(item)}><span>{item.icon}</span><div><small>{item.ownerModule}</small><strong>{item.label}</strong><p>{item.keywords.slice(0,3).join(" · ")}</p></div><b>→</b></button>)}
+      {pages.length === 0 && <div className="empty-workspace"><span>◇</span><h2>Chưa có phân hệ được cấp quyền</h2><p>Liên hệ quản trị viên để bật module hoặc gán policy phù hợp.</p></div>}
+    </section>
+  </>;
+}
+
+type ApprovalItem = { id:string; title:string; description:string; status:string; priority:string; amount?:number; version:number; updatedAt:string };
+function ApprovalWorkspace() {
+  const [items,setItems]=useState<ApprovalItem[]>([]);const [status,setStatus]=useState("");const [query,setQuery]=useState("");
+  const [title,setTitle]=useState("");const [priority,setPriority]=useState("MEDIUM");const [message,setMessage]=useState("");const [loading,setLoading]=useState(false);
+  const authHeaders=()=>({Authorization:`Bearer ${window.localStorage.getItem("core-access-token")||window.sessionStorage.getItem("core-access-token")||""}`});
+  const load=async()=>{setLoading(true);try{const params=new URLSearchParams();if(status)params.set("status",status);if(query)params.set("q",query);const r=await fetch(`${API_URL}/api/v1/approvals?${params}`,{headers:authHeaders()});if(!r.ok)throw new Error((await r.json().catch(()=>({}))).detail||"Không thể tải đề nghị");setItems(await r.json());setMessage("");}catch(e){setMessage(e instanceof Error?e.message:"Không thể tải dữ liệu");}finally{setLoading(false);}};
+  useEffect(()=>{load();},[status]);
+  const create=async()=>{if(!title.trim())return setMessage("Vui lòng nhập tiêu đề đề nghị.");const r=await fetch(`${API_URL}/api/v1/approvals`,{method:"POST",headers:{...authHeaders(),"Content-Type":"application/json"},body:JSON.stringify({title:title.trim(),description:"",priority})});if(!r.ok)return setMessage((await r.json().catch(()=>({}))).detail||"Không thể tạo đề nghị");setTitle("");setMessage("Đã tạo đề nghị mới.");await load();};
+  const transition=async(item:ApprovalItem,action:"submit"|"approve"|"reject"|"cancel")=>{const note=action==="approve"||action==="reject"?window.prompt("Nhập nội dung quyết định")||"":"";if((action==="approve"||action==="reject")&&!note)return;const r=await fetch(`${API_URL}/api/v1/approvals/${item.id}/${action}`,{method:"POST",headers:{...authHeaders(),"Content-Type":"application/json"},body:JSON.stringify(action==="approve"||action==="reject"?{note}:{})});if(!r.ok)return setMessage((await r.json().catch(()=>({}))).detail||"Thao tác thất bại");setMessage("Đã cập nhật trạng thái đề nghị.");await load();};
+  return <>
+    <PageTitle eyebrow="Approval Domain" title="Đề nghị phê duyệt" description="Module nghiệp vụ code-first với state machine, permission, audit và transactional outbox." />
+    <section className="panel approval-create"><div><h2>Tạo đề nghị</h2><p>Dữ liệu được kiểm tra theo domain invariant trước khi ghi.</p></div><input aria-label="Tiêu đề đề nghị" value={title} onChange={e=>setTitle(e.target.value)} placeholder="Ví dụ: Phê duyệt mua thiết bị" /><select value={priority} onChange={e=>setPriority(e.target.value)} aria-label="Mức ưu tiên"><option value="LOW">Thấp</option><option value="MEDIUM">Trung bình</option><option value="HIGH">Cao</option><option value="URGENT">Khẩn cấp</option></select><button className="primary-button" onClick={create}>＋ Tạo đề nghị</button></section>
+    <div className="filter-row"><div className="search-field"><span>⌕</span><input value={query} onChange={e=>setQuery(e.target.value)} onKeyDown={e=>e.key==="Enter"&&load()} placeholder="Tìm đề nghị..." /></div>{["","DRAFT","SUBMITTED","APPROVED","REJECTED"].map(value=><button key={value||"all"} className={`filter-chip ${status===value?"active":""}`} onClick={()=>setStatus(value)}>{value||"Tất cả"}</button>)}</div>
+    {message&&<p className="operation-message">{message}</p>}
+    <section className="panel approval-table"><div className="approval-row approval-head"><span>Đề nghị</span><span>Ưu tiên</span><span>Trạng thái</span><span>Cập nhật</span><span>Thao tác</span></div>{loading?<div className="empty-workspace"><p>Đang tải...</p></div>:items.map(item=><div className="approval-row" key={item.id}><span><strong>{item.title}</strong><small>v{item.version} · {item.id.slice(0,8)}</small></span><span><em className={`priority ${item.priority.toLowerCase()}`}>{item.priority}</em></span><span><em className={`state ${item.status.toLowerCase()}`}>{item.status}</em></span><time>{new Date(item.updatedAt).toLocaleString("vi-VN")}</time><span className="approval-actions">{item.status==="DRAFT"&&<button onClick={()=>transition(item,"submit")}>Gửi duyệt</button>}{item.status==="SUBMITTED"&&<><button onClick={()=>transition(item,"approve")}>Duyệt</button><button onClick={()=>transition(item,"reject")}>Từ chối</button></>}</span></div>)}{!loading&&items.length===0&&<div className="empty-workspace"><span>✓</span><h2>Chưa có đề nghị</h2><p>Tạo đề nghị đầu tiên trong biểu mẫu phía trên.</p></div>}</section>
+  </>;
+}
+
 export default function Home() {
-  const [authenticated, setAuthenticated] = useState(false);
-  const [authReady, setAuthReady] = useState(false);
-  const [view, setView] = useState<View>("overview");
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [commandOpen, setCommandOpen] = useState(false);
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [profileOpen, setProfileOpen] = useState(false);
-  const [logoutOpen, setLogoutOpen] = useState(false);
-  const [apiOnline, setApiOnline] = useState(false);
-  const [data, setData] = useState<BootstrapData | null>(null);
-  const [operationError, setOperationError] = useState("");
+  const [authenticated,setAuthenticated]=useState(false);const [authReady,setAuthReady]=useState(false);const [user,setUser]=useState<UserInfo|null>(null);
+  const [navigation,setNavigation]=useState<NavigationModel|null>(null);const [workspaceKey,setWorkspaceKey]=useState("");const [expandedGroup,setExpandedGroup]=useState("");const [view,setView]=useState<View>("business-home");
+  const [sidebarOpen,setSidebarOpen]=useState(false);const [commandOpen,setCommandOpen]=useState(false);const [commandQuery,setCommandQuery]=useState("");const [notificationsOpen,setNotificationsOpen]=useState(false);const [profileOpen,setProfileOpen]=useState(false);const [logoutOpen,setLogoutOpen]=useState(false);
+  const [apiOnline,setApiOnline]=useState(false);const [data,setData]=useState<BootstrapData|null>(null);const [operationError,setOperationError]=useState("");
+  const token=()=>window.localStorage.getItem("core-access-token")||window.sessionStorage.getItem("core-access-token")||"";
+  const authHeaders=()=>({Authorization:`Bearer ${token()}`});
 
-  useEffect(() => {
-    const token = window.localStorage.getItem("core-access-token") || window.sessionStorage.getItem("core-access-token");
-    if (!token) { setAuthReady(true); return; }
-    fetch(`${API_URL}/api/v1/auth/me`, { headers: { Authorization: `Bearer ${token}` } }).then((response) => {
-      if (!response.ok) throw new Error(); setAuthenticated(true); setApiOnline(true);
-    }).catch(() => { window.localStorage.removeItem("core-access-token"); window.sessionStorage.removeItem("core-access-token"); }).finally(() => setAuthReady(true));
-  }, []);
+  useEffect(()=>{const existing=token();if(!existing){setAuthReady(true);return;}fetch(`${API_URL}/api/v1/auth/me`,{headers:{Authorization:`Bearer ${existing}`}}).then(async r=>{if(!r.ok)throw new Error();setUser(await r.json());setAuthenticated(true);setApiOnline(true);}).catch(()=>{window.localStorage.removeItem("core-access-token");window.sessionStorage.removeItem("core-access-token");}).finally(()=>setAuthReady(true));},[]);
 
-  useEffect(() => {
-    if (!authenticated) return;
-    const token = window.localStorage.getItem("core-access-token") || window.sessionStorage.getItem("core-access-token");
-    fetch(`${API_URL}/api/v1/control-plane/bootstrap`, { headers: { Authorization: `Bearer ${token}` } }).then(r => { if (!r.ok) throw new Error(); return r.json(); }).then((body:BootstrapData) => { setData(body); setApiOnline(true); }).catch(() => setApiOnline(false));
-  }, [authenticated]);
+  const selectInitialNavigation=(model:NavigationModel)=>{const pages=model.workspaces.flatMap(workspace=>workspace.items.filter(item=>item.type==="PAGE").map(item=>({workspace,item})));const hashRoute=`/${window.location.hash}`;const fromRoute=pages.find(entry=>entry.item.route===hashRoute);const workspace=model.workspaces.find(item=>item.key===(fromRoute?.workspace.key||model.currentWorkspaceKey||model.defaultWorkspaceKey))||model.workspaces[0];const item=fromRoute?.item||workspace?.items.find(entry=>entry.type==="PAGE");if(workspace)setWorkspaceKey(workspace.key);if(item){setView(item.viewKey as View);setExpandedGroup(item.parentKey);}};
+  const loadNavigation=async()=>{const response=await fetch(`${API_URL}/api/v1/navigation/me`,{headers:authHeaders()});if(!response.ok)throw new Error("Không thể tải Navigation Registry");const model:NavigationModel=await response.json();setNavigation(model);selectInitialNavigation(model);return model;};
+  const refresh=async()=>{const response=await fetch(`${API_URL}/api/v1/control-plane/bootstrap`,{headers:authHeaders()});if(!response.ok)throw new Error("Không thể tải dữ liệu Control Plane");setData(await response.json());};
 
-  useEffect(() => {
-    const handler = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") { event.preventDefault(); setCommandOpen(true); }
-      if (event.key === "Escape") { setCommandOpen(false); setNotificationsOpen(false); setProfileOpen(false); setLogoutOpen(false); setSidebarOpen(false); }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, []);
+  useEffect(()=>{if(!authenticated)return;(async()=>{try{const [me,model]=await Promise.all([fetch(`${API_URL}/api/v1/auth/me`,{headers:authHeaders()}).then(r=>{if(!r.ok)throw new Error();return r.json();}),loadNavigation()]);setUser(me);if(model.workspaces.some(workspace=>workspace.category==="ADMIN"))await refresh();setApiOnline(true);}catch{setApiOnline(false);setOperationError("Không thể khởi tạo Workspace. Vui lòng đăng nhập lại hoặc kiểm tra backend.");}})();},[authenticated]);
+  useEffect(()=>{const handler=(event:KeyboardEvent)=>{if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==="k"){event.preventDefault();setCommandOpen(true);}if(event.key==="Escape"){setCommandOpen(false);setNotificationsOpen(false);setProfileOpen(false);setLogoutOpen(false);setSidebarOpen(false);}};window.addEventListener("keydown",handler);return()=>window.removeEventListener("keydown",handler);},[]);
 
-  const currentLabel = useMemo(() => navItems.find((item) => item.id === view)?.label ?? "Tổng quan", [view]);
-  const navigate = (next: View) => { setView(next); setSidebarOpen(false); window.scrollTo({ top: 0, behavior: "smooth" }); };
-  const token = () => window.localStorage.getItem("core-access-token") || window.sessionStorage.getItem("core-access-token") || "";
-  const refresh = async () => { const response=await fetch(`${API_URL}/api/v1/control-plane/bootstrap`,{headers:{Authorization:`Bearer ${token()}`}}); if(!response.ok) throw new Error("Không thể tải dữ liệu"); setData(await response.json()); };
-  const mutate = async (path:string,method:string,body?:unknown) => { setOperationError(""); const response=await fetch(`${API_URL}${path}`,{method,headers:{Authorization:`Bearer ${token()}`,"Content-Type":"application/json"},body:body===undefined?undefined:JSON.stringify(body)}); if(!response.ok){const problem=await response.json().catch(()=>({})); const message=problem.detail||"Thao tác thất bại"; setOperationError(message); throw new Error(message);} await refresh(); };
-  const changeModuleStatus = (item:ModuleItem) => mutate(`/api/v1/control-plane/modules/${item.id}/status`,"PATCH",{status:item.status === "DISABLED" ? "HEALTHY" : "DISABLED"}).catch(()=>undefined);
-  const createRole = () => { const name=window.prompt("Tên vai trò"); if(!name)return; mutate("/api/v1/control-plane/roles","POST",{name,scope:"Toàn deployment"}).catch(()=>undefined); };
-  const uploadFile = async (file:File) => { setOperationError(""); const form=new FormData();form.append("file",file);const response=await fetch(`${API_URL}/api/v1/files?classification=INTERNAL`,{method:"POST",headers:{Authorization:`Bearer ${token()}`},body:form});if(!response.ok){const p=await response.json().catch(()=>({}));setOperationError(p.detail||"Upload thất bại");return;}await refresh(); };
-  const downloadFile = async (item:FileItem) => { const response=await fetch(`${API_URL}/api/v1/files/${item.id}/content`,{headers:{Authorization:`Bearer ${token()}`}});if(!response.ok){const p=await response.json().catch(()=>({}));setOperationError(p.detail||"Nội dung file chưa sẵn sàng");return;}const url=URL.createObjectURL(await response.blob());const a=document.createElement("a");a.href=url;a.download=item.name;a.click();URL.revokeObjectURL(url); };
-  const signIn = (token: string, remember: boolean) => {
-    (remember ? window.localStorage : window.sessionStorage).setItem("core-access-token", token);
-    setApiOnline(true); setAuthenticated(true);
-  };
-  const signOut = async () => {
-    const token = window.localStorage.getItem("core-access-token") || window.sessionStorage.getItem("core-access-token");
-    if (token) await fetch(`${API_URL}/api/v1/auth/logout`, { method: "POST", headers: { Authorization: `Bearer ${token}` } }).catch(() => undefined);
-    window.localStorage.removeItem("core-access-token"); window.sessionStorage.removeItem("core-access-token");
-    setAuthenticated(false); setLogoutOpen(false); setProfileOpen(false); setView("overview");
-  };
+  const workspaces=navigation?.workspaces??[];const allPages=useMemo(()=>workspaces.flatMap(workspace=>workspace.items.filter(item=>item.type==="PAGE").map(item=>({workspace,item}))),[workspaces]);
+  const activeWorkspace=workspaces.find(item=>item.key===workspaceKey)||workspaces[0];const currentEntry=allPages.find(entry=>entry.item.viewKey===view);const currentLabel=currentEntry?.item.label??"Workspace";
+  const favoriteEntries=(navigation?.favoriteKeys??[]).map(key=>allPages.find(entry=>entry.item.key===key)).filter((entry):entry is {workspace:NavigationWorkspace;item:NavigationItem}=>Boolean(entry));
+  const commandEntries=allPages.filter(entry=>{const text=`${entry.item.label} ${entry.item.keywords.join(" ")} ${entry.workspace.label}`.toLowerCase();return text.includes(commandQuery.toLowerCase());}).sort((a,b)=>{const recent=navigation?.recentKeys??[];const ai=recent.indexOf(a.item.key),bi=recent.indexOf(b.item.key);return(ai<0?999:ai)-(bi<0?999:bi)||a.item.sortOrder-b.item.sortOrder;});
 
-  if (!authReady) return <div className="auth-loading" aria-label="Đang kiểm tra phiên đăng nhập"><span /></div>;
-  if (!authenticated) return <LoginScreen onAuthenticated={signIn} />;
+  const savePreferences=async(favoriteKeys:string[],recentKeys:string[],lastWorkspaceKey:string)=>{const response=await fetch(`${API_URL}/api/v1/navigation/me/preferences`,{method:"PUT",headers:{...authHeaders(),"Content-Type":"application/json"},body:JSON.stringify({favoriteKeys,recentKeys,lastWorkspaceKey})});if(response.ok)setNavigation(await response.json());};
+  const openItem=(item:NavigationItem)=>{if(item.type!=="PAGE")return;const owner=workspaces.find(workspace=>workspace.items.some(candidate=>candidate.key===item.key));if(owner)setWorkspaceKey(owner.key);setView(item.viewKey as View);setExpandedGroup(item.parentKey);setSidebarOpen(false);setCommandOpen(false);setCommandQuery("");window.history.replaceState(null,"",item.route);window.scrollTo({top:0,behavior:"smooth"});if(navigation){const recent=[item.key,...navigation.recentKeys.filter(key=>key!==item.key)].slice(0,10);void savePreferences(navigation.favoriteKeys,recent,owner?.key||workspaceKey);}};
+  const navigate=(next:View)=>{const entry=allPages.find(candidate=>candidate.item.viewKey===next);if(entry)openItem(entry.item);};
+  const changeWorkspace=(key:string)=>{const workspace=workspaces.find(item=>item.key===key);const preferred=(navigation?.recentKeys??[]).map(recent=>workspace?.items.find(item=>item.key===recent&&item.type==="PAGE")).find(Boolean);const first=preferred||workspace?.items.find(item=>item.type==="PAGE");if(first)openItem(first);else setWorkspaceKey(key);};
+  const toggleFavorite=(item:NavigationItem)=>{if(!navigation)return;const favoriteKeys=navigation.favoriteKeys.includes(item.key)?navigation.favoriteKeys.filter(key=>key!==item.key):[...navigation.favoriteKeys,item.key].slice(0,20);void savePreferences(favoriteKeys,navigation.recentKeys,workspaceKey);};
+  const mutate=async(path:string,method:string,body?:unknown)=>{setOperationError("");const response=await fetch(`${API_URL}${path}`,{method,headers:{...authHeaders(),"Content-Type":"application/json"},body:body===undefined?undefined:JSON.stringify(body)});if(!response.ok){const problem=await response.json().catch(()=>({}));const message=problem.detail||"Thao tác thất bại";setOperationError(message);throw new Error(message);}await refresh();};
+  const changeModuleStatus=async(item:ModuleItem)=>{try{await mutate(`/api/v1/control-plane/modules/${item.id}/status`,"PATCH",{status:item.status==="DISABLED"?"HEALTHY":"DISABLED"});await loadNavigation();}catch{}};
+  const createRole=()=>{const name=window.prompt("Tên vai trò");if(name)mutate("/api/v1/control-plane/roles","POST",{name,scope:"Toàn deployment"}).catch(()=>undefined);};
+  const uploadFile=async(file:File)=>{setOperationError("");const form=new FormData();form.append("file",file);const response=await fetch(`${API_URL}/api/v1/files?classification=INTERNAL`,{method:"POST",headers:authHeaders(),body:form});if(!response.ok){const p=await response.json().catch(()=>({}));setOperationError(p.detail||"Upload thất bại");return;}await refresh();};
+  const downloadFile=async(item:FileItem)=>{const response=await fetch(`${API_URL}/api/v1/files/${item.id}/content`,{headers:authHeaders()});if(!response.ok){const p=await response.json().catch(()=>({}));setOperationError(p.detail||"Nội dung file chưa sẵn sàng");return;}const url=URL.createObjectURL(await response.blob());const a=document.createElement("a");a.href=url;a.download=item.name;a.click();URL.revokeObjectURL(url);};
+  const signIn=(accessToken:string,remember:boolean)=>{(remember?window.localStorage:window.sessionStorage).setItem("core-access-token",accessToken);setNavigation(null);setApiOnline(true);setAuthenticated(true);};
+  const signOut=async()=>{const accessToken=token();if(accessToken)await fetch(`${API_URL}/api/v1/auth/logout`,{method:"POST",headers:{Authorization:`Bearer ${accessToken}`}}).catch(()=>undefined);window.localStorage.removeItem("core-access-token");window.sessionStorage.removeItem("core-access-token");setAuthenticated(false);setNavigation(null);setData(null);setUser(null);setLogoutOpen(false);setProfileOpen(false);setView("business-home");};
+  const initials=(user?.displayName||user?.email||"CP").split(/\s+/).map(part=>part[0]).join("").slice(0,2).toUpperCase();const settingsItem=allPages.find(entry=>entry.item.viewKey==="settings")?.item;
+  const renderPageButton=(item:NavigationItem,compact=false)=><div className={`nav-entry ${compact?"compact":""}`} key={item.key}><button className={view===item.viewKey?"active":""} onClick={()=>openItem(item)}><span className="nav-icon">{item.icon}</span><span>{item.label}</span></button><button className={`favorite-toggle ${navigation?.favoriteKeys.includes(item.key)?"selected":""}`} aria-label={`${navigation?.favoriteKeys.includes(item.key)?"Bỏ":"Thêm"} yêu thích ${item.label}`} onClick={()=>toggleFavorite(item)}>☆</button></div>;
 
-  return (
-    <div className="app-shell">
-      <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
-        <div className="brand"><div className="brand-mark"><i /><i /><i /><i /></div><div><strong>Core</strong><span>Platform</span></div></div>
-        <div className="environment-switcher"><span>CP</span><div><strong>Core Production</strong><small>core-production-vn</small></div><button aria-label="Đổi môi trường">⌄</button></div>
-        <nav aria-label="Điều hướng chính">
-          <p>Workspace</p>
-          {navItems.slice(0, 6).map((item) => <button key={item.id} className={view === item.id ? "active" : ""} onClick={() => navigate(item.id)}><span className="nav-icon">{item.icon}</span><span>{item.label}</span>{item.badge && <em>{item.badge}</em>}</button>)}
-          <p>System</p>
-          {navItems.slice(6).map((item) => <button key={item.id} className={view === item.id ? "active" : ""} onClick={() => navigate(item.id)}><span className="nav-icon">{item.icon}</span><span>{item.label}</span></button>)}
-        </nav>
-        <div className="sidebar-status"><div><StatusDot tone={apiOnline ? "teal" : "amber"} /><strong>{apiOnline ? "Backend connected" : "Backend unavailable"}</strong></div><span>Core v1.0.0-rc.4</span></div>
-      </aside>
-      {sidebarOpen && <button className="sidebar-scrim" aria-label="Đóng menu" onClick={() => setSidebarOpen(false)} />}
+  if(!authReady)return <div className="auth-loading" aria-label="Đang kiểm tra phiên đăng nhập"><span/></div>;
+  if(!authenticated)return <LoginScreen onAuthenticated={signIn}/>;
+  if(!navigation)return <div className="auth-loading" aria-label="Đang tải Navigation Registry"><span/></div>;
 
-      <div className="main-area">
-        <header className="topbar">
-          <button className="mobile-menu" aria-label="Mở menu" onClick={() => setSidebarOpen(true)}>☰</button>
-          <div className="breadcrumb"><span>Core Platform</span><b>/</b><strong>{currentLabel}</strong></div>
-          <button className="command-trigger" onClick={() => setCommandOpen(true)}><span>⌕</span> Tìm kiếm hoặc chạy lệnh... <kbd>⌘ K</kbd></button>
-          <div className="top-actions"><button aria-label="Trợ giúp">?</button><button aria-label="Thông báo" className="notification-button" onClick={() => { setNotificationsOpen(!notificationsOpen); setProfileOpen(false); }}>♢<i /></button><button className="profile-button" aria-expanded={profileOpen} onClick={() => { setProfileOpen(!profileOpen); setNotificationsOpen(false); }}><span>MN</span><div><strong>Minh Nguyễn</strong><small>Platform Admin</small></div><b>⌄</b></button></div>
-          {notificationsOpen && <div className="notification-popover"><div><strong>Thông báo</strong><button onClick={() => setNotificationsOpen(false)}>×</button></div><article><span className="notice amber">!</span><p><strong>Outbox có 12 sự kiện đang chờ</strong><small>Consumer webhook chậm hơn bình thường.</small></p><time>2 phút</time></article><article><span className="notice teal">✓</span><p><strong>Audit checkpoint hoàn tất</strong><small>12.400 records đã được xác minh.</small></p><time>4 phút</time></article></div>}
-          {profileOpen && <div className="profile-popover"><div className="profile-summary"><span>MN</span><p><strong>Minh Nguyễn</strong><small>admin@core.local</small></p></div><div className="profile-role"><span>Platform Administrator</span><em>Production</em></div><button onClick={() => { navigate("settings"); setProfileOpen(false); }}><span>⚙</span> Hồ sơ & bảo mật</button><button onClick={() => setLogoutOpen(true)} className="logout-action"><span>↪</span> Đăng xuất</button></div>}
-        </header>
-
-        <main>
-          {operationError && <p className="auth-error" role="alert">{operationError}</p>}
-          {!data && <div className="auth-loading" aria-label="Đang tải dữ liệu"><span /></div>}
-          {data && view === "overview" && <Overview onNavigate={navigate} data={data} />}
-          {data && view === "modules" && <Modules items={data.modules} onStatus={changeModuleStatus} />}
-          {data && view === "resources" && <Resources items={data.resources} onChanged={refresh} />}
-          {data && view === "access" && <Access items={data.roles} onCreate={createRole} />}
-          {data && view === "activity" && <Activity items={data.activities} />}
-          {data && view === "files" && <Files items={data.files} storageGb={data.summary.storageGb} onUpload={uploadFile} onDownload={downloadFile} />}
-          {data && view === "settings" && <Settings values={data.settings} onSave={(items)=>mutate("/api/v1/control-plane/settings","PUT",items)} />}
-        </main>
-      </div>
-
-      {commandOpen && <div className="modal-backdrop" role="presentation" onMouseDown={() => setCommandOpen(false)}><section className="command-modal" role="dialog" aria-modal="true" aria-label="Command palette" onMouseDown={(e) => e.stopPropagation()}><div className="command-input"><span>⌕</span><input autoFocus placeholder="Tìm resource, module hoặc lệnh..." /><kbd>ESC</kbd></div><p>Đi tới</p>{navItems.slice(0,6).map((item) => <button key={item.id} onClick={() => { navigate(item.id); setCommandOpen(false); }}><span>{item.icon}</span>{item.label}<kbd>→</kbd></button>)}</section></div>}
-      {logoutOpen && <div className="modal-backdrop logout-backdrop" role="presentation" onMouseDown={() => setLogoutOpen(false)}><section className="logout-modal" role="dialog" aria-modal="true" aria-labelledby="logout-title" onMouseDown={(e) => e.stopPropagation()}><span className="logout-icon">↪</span><h2 id="logout-title">Đăng xuất khỏi Core Platform?</h2><p>Phiên làm việc hiện tại sẽ kết thúc. Bạn cần xác thực lại để tiếp tục truy cập.</p><div><button className="secondary-button" onClick={() => setLogoutOpen(false)}>Ở lại</button><button className="danger-button" onClick={signOut}>Đăng xuất</button></div></section></div>}
-    </div>
-  );
+  const topLevel=activeWorkspace?.items.filter(item=>!item.parentKey)??[];
+  return <div className="app-shell">
+    <aside className={`sidebar ${sidebarOpen?"open":""}`}>
+      <div className="brand"><div className="brand-mark"><i/><i/><i/><i/></div><div><strong>Core</strong><span>Platform</span></div></div>
+      <label className="workspace-switcher"><span>{activeWorkspace?.icon||"▦"}</span><div><small>Workspace</small><select value={activeWorkspace?.key||""} onChange={event=>changeWorkspace(event.target.value)} aria-label="Chọn Workspace">{workspaces.map(workspace=><option key={workspace.key} value={workspace.key}>{workspace.label}</option>)}</select></div><b>⌄</b></label>
+      <nav aria-label="Điều hướng Workspace">
+        {favoriteEntries.length>0&&<><p>Yêu thích</p>{favoriteEntries.slice(0,5).map(entry=>renderPageButton(entry.item,true))}</>}
+        <p>{activeWorkspace?.category==="ADMIN"?"Quản trị hệ thống":"Phân hệ nghiệp vụ"}</p>
+        {topLevel.map(item=>item.type==="GROUP"?<div className={`nav-group ${expandedGroup===item.key?"open":""}`} key={item.key}><button className="nav-group-trigger" onClick={()=>setExpandedGroup(expandedGroup===item.key?"":item.key)}><span className="nav-icon">{item.icon}</span><span>{item.label}</span><b>⌄</b></button>{expandedGroup===item.key&&<div className="nav-children">{activeWorkspace?.items.filter(child=>child.parentKey===item.key&&child.type==="PAGE").map(child=>renderPageButton(child))}</div>}</div>:renderPageButton(item))}
+      </nav>
+      <div className="sidebar-status"><div><StatusDot tone={apiOnline?"teal":"amber"}/><strong>{apiOnline?"Backend connected":"Backend unavailable"}</strong></div><span>Navigation {navigation.revision}</span></div>
+    </aside>
+    {sidebarOpen&&<button className="sidebar-scrim" aria-label="Đóng menu" onClick={()=>setSidebarOpen(false)}/>}
+    <div className="main-area"><header className="topbar"><button className="mobile-menu" aria-label="Mở menu" onClick={()=>setSidebarOpen(true)}>☰</button><div className="breadcrumb"><span>{activeWorkspace?.label||"Workspace"}</span><b>/</b><strong>{currentLabel}</strong></div><button className="command-trigger" onClick={()=>setCommandOpen(true)}><span>⌕</span> Tìm module hoặc chức năng... <kbd>⌘ K</kbd></button><div className="top-actions"><button aria-label="Trợ giúp">?</button><button aria-label="Thông báo" className="notification-button" onClick={()=>{setNotificationsOpen(!notificationsOpen);setProfileOpen(false);}}>♢<i/></button><button className="profile-button" aria-expanded={profileOpen} onClick={()=>{setProfileOpen(!profileOpen);setNotificationsOpen(false);}}><span>{initials}</span><div><strong>{user?.displayName||"Người dùng"}</strong><small>{user?.role==="PLATFORM_ADMIN"?"Platform Admin":"Application User"}</small></div><b>⌄</b></button></div>
+      {notificationsOpen&&<div className="notification-popover"><div><strong>Thông báo</strong><button onClick={()=>setNotificationsOpen(false)}>×</button></div><article><span className="notice teal">✓</span><p><strong>Navigation Registry đã đồng bộ</strong><small>Menu được lọc theo module và quyền hiện tại.</small></p><time>Live</time></article></div>}
+      {profileOpen&&<div className="profile-popover"><div className="profile-summary"><span>{initials}</span><p><strong>{user?.displayName||"Người dùng"}</strong><small>{user?.email}</small></p></div><div className="profile-role"><span>{user?.role}</span><em>{activeWorkspace?.label}</em></div>{settingsItem&&<button onClick={()=>{openItem(settingsItem);setProfileOpen(false);}}><span>⚙</span> Hồ sơ & bảo mật</button>}<button onClick={()=>setLogoutOpen(true)} className="logout-action"><span>↪</span> Đăng xuất</button></div>}
+    </header><main>{operationError&&<p className="auth-error" role="alert">{operationError}</p>}{view==="business-home"&&activeWorkspace&&<BusinessHome workspace={activeWorkspace} onOpen={openItem}/>} {view==="approvals"&&<ApprovalWorkspace/>}{data&&view==="overview"&&<Overview onNavigate={navigate} data={data} displayName={user?.displayName}/>} {data&&view==="modules"&&<Modules items={data.modules} onStatus={changeModuleStatus}/>} {data&&view==="resources"&&<Resources items={data.resources} onChanged={refresh}/>} {data&&view==="access"&&<Access items={data.roles} onCreate={createRole}/>} {data&&view==="activity"&&<Activity items={data.activities}/>} {data&&view==="files"&&<Files items={data.files} storageGb={data.summary.storageGb} onUpload={uploadFile} onDownload={downloadFile}/>} {data&&view==="settings"&&<Settings values={data.settings} onSave={items=>mutate("/api/v1/control-plane/settings","PUT",items)}/>} {activeWorkspace?.category==="ADMIN"&&!data&&<div className="auth-loading" aria-label="Đang tải Control Plane"><span/></div>}</main></div>
+    {commandOpen&&<div className="modal-backdrop" role="presentation" onMouseDown={()=>setCommandOpen(false)}><section className="command-modal" role="dialog" aria-modal="true" aria-label="Command palette" onMouseDown={event=>event.stopPropagation()}><div className="command-input"><span>⌕</span><input autoFocus value={commandQuery} onChange={event=>setCommandQuery(event.target.value)} placeholder="Tìm Workspace, module hoặc chức năng..."/><kbd>ESC</kbd></div><p>{commandQuery?"Kết quả":"Gần đây và chức năng được cấp quyền"}</p>{commandEntries.slice(0,12).map(entry=><button key={entry.item.key} onClick={()=>openItem(entry.item)}><span>{entry.item.icon}</span><div><strong>{entry.item.label}</strong><small>{entry.workspace.label} · {entry.item.ownerModule}</small></div><kbd>→</kbd></button>)}{commandEntries.length===0&&<div className="command-empty">Không tìm thấy chức năng phù hợp với quyền hiện tại.</div>}</section></div>}
+    {logoutOpen&&<div className="modal-backdrop logout-backdrop" role="presentation" onMouseDown={()=>setLogoutOpen(false)}><section className="logout-modal" role="dialog" aria-modal="true" aria-labelledby="logout-title" onMouseDown={event=>event.stopPropagation()}><span className="logout-icon">↪</span><h2 id="logout-title">Đăng xuất khỏi Core Platform?</h2><p>Phiên làm việc hiện tại sẽ kết thúc. Bạn cần xác thực lại để tiếp tục truy cập.</p><div><button className="secondary-button" onClick={()=>setLogoutOpen(false)}>Ở lại</button><button className="danger-button" onClick={signOut}>Đăng xuất</button></div></section></div>}
+  </div>;
 }
