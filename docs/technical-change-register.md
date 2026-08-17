@@ -79,10 +79,11 @@ Phần quyết định kỹ thuật được cập nhật có chủ đích trong
 ## 5. Lịch sử thay đổi tự động
 
 <!-- AUTO-GENERATED:START -->
-> Sinh tự động từ Git. Mốc mã gần nhất: `0f5ec51cac77974ff5f37741cc894faa07edcea9` (2026-08-17). Không sửa trực tiếp phần này.
+> Sinh tự động từ Git. Mốc mã gần nhất: `499061418cabf6557bc3ecc524b90cf8bc31c6cb` (2026-08-17). Không sửa trực tiếp phần này.
 
 | Ngày | Commit | Nội dung | Tác giả | Số file |
 |---|---|---|---|---:|
+| 2026-08-17 | [`4990614`](https://github.com/sgodev2024/java-core/commit/499061418cabf6557bc3ecc524b90cf8bc31c6cb) | Align ESG frontend with production APIs | SGO Development | 31 |
 | 2026-08-17 | [`0f5ec51`](https://github.com/sgodev2024/java-core/commit/0f5ec51cac77974ff5f37741cc894faa07edcea9) | Isolate approval sample behind demo and test profiles | SGO Development | 22 |
 | 2026-08-17 | [`ae38ab7`](https://github.com/sgodev2024/java-core/commit/ae38ab7cca381cb1bf9630da7ed2ec106915af9d) | Remove deployment summary strip from home page | SGO Development | 5 |
 | 2026-08-17 | [`16e7eab`](https://github.com/sgodev2024/java-core/commit/16e7eab53bc9368d9c9a8e90f0069cc7d29939a5) | Enforce assignment-scoped personal task navigation | SGO Development | 11 |
@@ -118,6 +119,44 @@ Phần quyết định kỹ thuật được cập nhật có chủ đích trong
 | 2026-08-15 | [`295b0e6`](https://github.com/sgodev2024/java-core/commit/295b0e6d6b200c9cd17cfe23d11683f8d04d19e8) | Initialize Java Core Platform | SGO Development | 57 |
 
 ## Chi tiết file theo commit
+
+### 2026-08-17 — Align ESG frontend with production APIs
+
+- Commit: [`499061418cabf6557bc3ecc524b90cf8bc31c6cb`](https://github.com/sgodev2024/java-core/commit/499061418cabf6557bc3ecc524b90cf8bc31c6cb)
+- Tác giả: SGO Development
+- Phạm vi file:
+
+- `M` `backend/README.md`
+- `M` `backend/src/main/java/vn/coreplatform/controlplane/ControlPlaneController.java`
+- `M` `backend/src/main/java/vn/coreplatform/controlplane/ControlPlaneModule.java`
+- `M` `backend/src/main/java/vn/coreplatform/demo/approval/ApprovalDomainModule.java`
+- `M` `backend/src/main/java/vn/coreplatform/filemanagement/FileController.java`
+- `A` `backend/src/main/java/vn/coreplatform/filemanagement/FileResourceMetadata.java`
+- `A` `backend/src/main/java/vn/coreplatform/identity/BootstrapAdminInitializer.java`
+- `D` `backend/src/main/java/vn/coreplatform/identity/DemoAccountInitializer.java`
+- `A` `backend/src/main/java/vn/coreplatform/identity/IdentityResourceMetadata.java`
+- `M` `backend/src/main/java/vn/coreplatform/kernel/KernelModule.java`
+- `M` `backend/src/main/java/vn/coreplatform/kernel/ModuleRegistry.java`
+- `M` `backend/src/main/java/vn/coreplatform/kernel/ResourceRegistry.java`
+- `M` `backend/src/main/java/vn/coreplatform/permission/AccessManagementController.java`
+- `A` `backend/src/main/resources/db/migration/V18__remove_legacy_demo_seed_data.sql`
+- `A` `backend/src/test/java/vn/coreplatform/controlplane/LegacySeedDataCleanupTest.java`
+- `A` `backend/src/test/java/vn/coreplatform/identity/BootstrapAdminInitializerTest.java`
+- `M` `core-platform-ba-requirements-v1.1.md`
+- `A` `docs/backend-frontend-gap-analysis-v1.0.md`
+- `M` `docs/decisions.md`
+- `M` `frontend/README.md`
+- `A` `frontend/app/components/app-icon.tsx`
+- `M` `frontend/app/demo/approval-workspace.tsx`
+- `M` `frontend/app/globals.css`
+- `M` `frontend/app/page.tsx`
+- `M` `frontend/package-lock.json`
+- `M` `frontend/package.json`
+- `D` `frontend/postcss.config.mjs`
+- `D` `frontend/public/file.svg`
+- `D` `frontend/public/globe.svg`
+- `D` `frontend/public/window.svg`
+- `M` `frontend/tests/rendered-html.test.mjs`
 
 ### 2026-08-17 — Isolate approval sample behind demo and test profiles
 
