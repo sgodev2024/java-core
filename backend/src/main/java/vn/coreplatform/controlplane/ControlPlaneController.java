@@ -41,8 +41,9 @@ public class ControlPlaneController {
   @GetMapping("/bootstrap")
   Bootstrap bootstrap(Authentication auth){
     requireAdmin(auth);
-    var summary=jdbc.queryForObject("select (select coalesce(sum(record_count),0) from platform.resource_descriptor) resources,(select count(*) from platform.module) modules,(select count(*) from async.outbox_event where status='PENDING') outbox,(select count(*) from async.job where status='RUNNING') jobs,(select count(*) from files.file_object) files,(select coalesce(sum(size_bytes),0)/1073741824.0 from files.file_object) storage_gb",(r,n)->new Summary(r.getLong("resources"),r.getLong("modules"),r.getLong("outbox"),r.getLong("jobs"),r.getLong("files"),r.getDouble("storage_gb"),"1.0.0","core-production-vn"));
-    return new Bootstrap(summary,modules(),resources(),activities(),roles(),files(),auditRows(50),settings());
+    var runtimeSettings=settings();
+    var summary=jdbc.queryForObject("select (select coalesce(sum(record_count),0) from platform.resource_descriptor) resources,(select count(*) from platform.module) modules,(select count(*) from async.outbox_event where status='PENDING') outbox,(select count(*) from async.job where status='RUNNING') jobs,(select count(*) from files.file_object where status in ('ACTIVE','QUARANTINED')) files,(select coalesce(sum(size_bytes),0)/1073741824.0 from files.file_object where status in ('ACTIVE','QUARANTINED')) storage_gb",(r,n)->new Summary(r.getLong("resources"),r.getLong("modules"),r.getLong("outbox"),r.getLong("jobs"),r.getLong("files"),r.getDouble("storage_gb"),"1.0.0",runtimeSettings.getOrDefault("environment.name","core-production-vn")));
+    return new Bootstrap(summary,modules(),resources(),activities(),roles(),files(),auditRows(50),runtimeSettings);
   }
 
   @GetMapping("/audit") List<AuditItem> audit(@RequestParam(defaultValue="50") int limit, Authentication auth){
@@ -222,7 +223,7 @@ public class ControlPlaneController {
   private List<Resource> resources(){return jdbc.query("select * from platform.resource_descriptor order by updated_at desc",(r,n)->resource(r));}
   private List<Activity> activities(){return jdbc.query("select * from platform.activity order by occurred_at desc limit 50",(r,n)->activity(r));}
   private List<Role> roles(){return jdbc.query("select * from identity.role_summary order by name",(r,n)->role(r));}
-  private List<FileItem> files(){return jdbc.query("select * from files.file_object order by updated_at desc",(r,n)->new FileItem(r.getObject("id",UUID.class),r.getString("name"),r.getString("media_type"),r.getLong("size_bytes"),r.getString("classification"),r.getString("status"),r.getTimestamp("updated_at").toInstant()));}
+  private List<FileItem> files(){return jdbc.query("select * from files.file_object where status in ('ACTIVE','QUARANTINED') order by updated_at desc",(r,n)->new FileItem(r.getObject("id",UUID.class),r.getString("name"),r.getString("media_type"),r.getLong("size_bytes"),r.getString("classification"),r.getString("status"),r.getTimestamp("updated_at").toInstant()));}
   private Map<String,String> settings(){var result=new LinkedHashMap<String,String>();jdbc.query("select setting_key,setting_value from platform.setting order by setting_key",r->{result.put(r.getString(1),r.getString(2));});return result;}
   private Module module(java.sql.ResultSet r)throws java.sql.SQLException{return new Module(r.getObject("id",UUID.class),r.getString("name"),r.getString("module_key"),r.getString("version"),r.getString("status"),r.getString("description"),r.getString("metric"));}
   private Resource resource(java.sql.ResultSet r)throws java.sql.SQLException{return new Resource(r.getObject("id",UUID.class),r.getString("name"),r.getString("storage_mode"),r.getString("owner_module"),r.getLong("record_count"),r.getString("schema_version"),r.getTimestamp("updated_at").toInstant());}

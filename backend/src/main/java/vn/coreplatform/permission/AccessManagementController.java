@@ -15,8 +15,8 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController @RequestMapping("/api/v1/access")
 public class AccessManagementController {
-  private final JdbcTemplate jdbc;private final PasswordEncoder passwords;private final PermissionService permissions;private final vn.coreplatform.audit.AuditService audits;
-  public AccessManagementController(JdbcTemplate jdbc,PasswordEncoder passwords,PermissionService permissions,vn.coreplatform.audit.AuditService audits){this.jdbc=jdbc;this.passwords=passwords;this.permissions=permissions;this.audits=audits;}
+  private final JdbcTemplate jdbc;private final PasswordEncoder passwords;private final PermissionService permissions;private final vn.coreplatform.audit.AuditService audits;private final vn.coreplatform.kernel.ResourceRegistry resources;
+  public AccessManagementController(JdbcTemplate jdbc,PasswordEncoder passwords,PermissionService permissions,vn.coreplatform.audit.AuditService audits,vn.coreplatform.kernel.ResourceRegistry resources){this.jdbc=jdbc;this.passwords=passwords;this.permissions=permissions;this.audits=audits;this.resources=resources;}
   public record UserItem(UUID id,String email,String displayName,boolean enabled,List<String> roles,Instant createdAt){}
   public record RoleItem(UUID id,String code,String name,boolean systemRole){}
   public record PolicyItem(UUID id,String code,String resourceType,String action,String effect,String condition,int version,boolean enabled){}
@@ -99,6 +99,7 @@ public class AccessManagementController {
     jdbc.update("insert into identity.account(id,tenant_id,email,display_name,password_hash,password_algo,role,account_type,org_id) values(?,?,?,?,?,'ARGON2ID','SERVICE','SERVICE',?)",
       account,t,email,x.name().trim(),passwords.encode(UUID.randomUUID()+"Cp9"),x.orgId());
     var issued=issueApiKey(t,account,x.name().trim());
+    resources.adjustRecordCount("service-account",1);
     revision(t);audit(a,"SERVICE_ACCOUNT_CREATED",account);
     return issued;
   }
@@ -117,6 +118,7 @@ public class AccessManagementController {
     int c=jdbc.update("update identity.api_key set status='REVOKED' where id=? and tenant_id=? and status='ACTIVE'",id,t);
     if(c==0)throw new ApiProblem(HttpStatus.NOT_FOUND,"API_KEY_NOT_FOUND","API key không tồn tại hoặc đã bị thay");
     jdbc.update("update identity.account set enabled=false where id=(select account_id from identity.api_key where id=?)",id);
+    resources.adjustRecordCount("service-account",-1);
     audit(a,"SERVICE_ACCOUNT_REVOKED",id);
   }
   private ApiKeyIssued issueApiKey(UUID tenant,UUID account,String name){

@@ -57,6 +57,12 @@ public class ResourceRegistry {
     jdbc.update("update platform.resource_descriptor set record_count = greatest(record_count + ?, 0), updated_at=now() where resource_type=?", delta, resourceType);
   }
 
+  public void synchronizeRecordCount(String resourceType, long count) {
+    if (count < 0) throw new IllegalArgumentException("record count không được âm");
+    int changed = jdbc.update("update platform.resource_descriptor set record_count=?, updated_at=now() where resource_type=?", count, resourceType);
+    if (changed == 0) throw new IllegalStateException("Descriptor chưa đăng ký: " + resourceType);
+  }
+
   private void validate(ResourceDescriptor descriptor) {
     if (!descriptor.resourceType().matches(TYPE_PATTERN))
       throw new ApiProblem(HttpStatus.BAD_REQUEST, "INVALID_RESOURCE_TYPE", "resource_type phải khớp " + TYPE_PATTERN);

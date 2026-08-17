@@ -18,11 +18,11 @@ public class ApprovalDomainModule implements ModuleContributor {
   @Override public List<NavigationItemDescriptor> navigationItems() {
     return List.of(
         new NavigationItemDescriptor(
-            "module.approval-domain.demo-group", "business", "", "Nghiệp vụ mẫu", "navigation.demoBusiness", "▦",
+            "module.approval-domain.demo-group", "business", "", "Nghiệp vụ mẫu", "navigation.demoBusiness", "apps",
             "", "", 20, "", "", "", List.of("demo", "nghiệp vụ mẫu")),
         new NavigationItemDescriptor(
             "module.approval-domain.approvals", "business", "module.approval-domain.demo-group",
-            "Đề nghị phê duyệt", "navigation.approvals", "✓",
+            "Đề nghị phê duyệt", "navigation.approvals", "clipboard-check",
             "approvals", "/business/approvals", 21, "", "APPROVAL_REQUEST", "READ",
             List.of("approval", "phê duyệt", "đề nghị", "workflow", "demo")));
   }

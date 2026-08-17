@@ -23,7 +23,7 @@ OpenAPI: `http://localhost:8080/swagger-ui`
 Readiness: `http://localhost:8080/actuator/health/readiness`
 
 Demo account: `admin@core.local` / `Core@2026`; MFA code: `123456`.
-The seed hash in `V1__platform_baseline.sql` does not match any known password: the account password is claimed at startup from `CORE_BOOTSTRAP_ADMIN_PASSWORD` (see `DemoAccountInitializer`), and the MFA code comes from `CORE_BOOTSTRAP_MFA_CODE`. `docker-compose.yml` passes both for the local demo environment. Production must set its own strong values and never reuse the demo ones.
+`BootstrapAdminInitializer` nhận mật khẩu quản trị từ `CORE_BOOTSTRAP_ADMIN_PASSWORD`; `docker-compose.yml` chỉ truyền giá trị demo cho profile `demo`. Profile `production` fail-fast nếu biến bị trống hoặc vẫn là `Core@2026`. MFA code đến từ `CORE_BOOTSTRAP_MFA_CODE` và chỉ được chấp nhận khi deployment cho phép bootstrap MFA.
 
 `CORE_MFA_ENABLED` mặc định là `true`. Đặt `false` chỉ khi có phê duyệt vận hành tạm thời: login sẽ cấp session ngay sau password, ghi audit `AUTH_MFA_SKIPPED_BY_CONFIGURATION` và không xóa enrollment. Đổi lại `true` rồi restart để khôi phục TOTP.
 

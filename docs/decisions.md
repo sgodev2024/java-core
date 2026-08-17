@@ -17,6 +17,8 @@ Version được pin qua `backend/pom.xml`; cấm dynamic version.
 | 2026-08-16 | RLS ENABLE+FORCE + GUC `core.tenant_id` | PostgreSQL 17 built-in | runtime | E2-S03: isolation ở tầng database cho `dynamic_resource.*` và `files.file_object`; app gắn GUC mỗi lần lease connection và reset khi trả pool (`TenantAwareDataSource`) | PostgreSQL License | Role runtime `core_app` không DDL/owner/BYPASSRLS; thiếu GUC → 0 dòng (fail-closed) |
 | 2026-08-16 | BouncyCastle bcprov-jdk18on | 1.81 | runtime | E3-S02: `Argon2PasswordEncoder` của spring-security-crypto cần BC để chạy Argon2id; Boot không quản lý version nên pin tay | MIT | Hash mới`{argon2}`; hash `{bcrypt}` cũ verify được và tự rehash khi login |
 | 2026-08-15 | Maven Wrapper | 3.9.11 | build | `mvnw verify` chuẩn hóa mọi máy/CI (E0-S01) | Apache-2.0 | distributionUrl trỏ repo.maven.apache.org |
+| 2026-08-17 | Next.js + eslint-config-next | 16.3.1 | frontend runtime/build | App Router chính thức, standalone OCI; cập nhật khỏi 16.2.6 để xử lý security advisories và đồng bộ lint contract | MIT | Pin exact; Node.js 22; `npm audit` = 0; không dùng vinext/Vite |
+| 2026-08-17 | SVG icon nội bộ | source-owned | frontend | Icon theo ngữ nghĩa module, không thêm runtime dependency/icon font | Nội bộ dự án | Render inline, kế thừa `currentColor`, tương thích Navigation Registry |
 
 ## Quy ước chạy test không có Docker
 

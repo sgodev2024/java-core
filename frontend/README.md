@@ -1,6 +1,6 @@
 # Core Platform Control Plane — Next.js
 
-Frontend hợp nhất nghiệp vụ và quản trị của Java Core Platform. Runtime sử dụng Next.js App Router chính thức; không dùng vinext, Vite, Cloudflare Worker hoặc Sites hosting.
+Frontend hợp nhất nghiệp vụ và quản trị của Java Core Platform. Runtime sử dụng Next.js 16.3.1 App Router chính thức; không dùng vinext, Vite, Cloudflare Worker hoặc Sites hosting.
 
 ## Yêu cầu
 
@@ -40,6 +40,7 @@ Image cuối chạy non-root bằng `node server.js`, lắng nghe cổng `3000` 
 - `CORE_MFA_ENABLED=true`: login trả challenge, UI hiển thị màn hình TOTP.
 - `CORE_MFA_ENABLED=false`: login trả `mfaRequired=false` cùng `session`, UI vào hệ thống ngay sau password.
 - Frontend không tự quyết định bỏ MFA; backend là nguồn quyết định cuối cùng.
+- Access token và refresh token được lưu cùng phạm vi `remember`; khi API trả `401`, frontend xoay refresh token đúng một lần rồi gọi lại request. Refresh thất bại sẽ đưa phiên về trạng thái cần đăng nhập lại.
 
 ## Navigation contract
 
@@ -49,7 +50,7 @@ Route chuẩn gồm `/home`, `/business/...` và `/administration/...`. Route kh
 
 View mẫu Approval Domain được tách tại `app/demo/approval-workspace.tsx` và lazy-load. Production backend không phát view `approvals`, vì vậy chunk demo không được mở và direct route `/business/approvals` quay về page hợp lệ trong manifest.
 
-Các trang Người dùng, Cơ cấu tổ chức và Vai trò & phân quyền gọi trực tiếp Access Management API. Giao diện dedicated deployment không hiển thị tenant/customer switcher.
+Các trang Người dùng, Cơ cấu tổ chức, Vai trò & phân quyền, Jobs/Outbox, file và cấu hình gọi trực tiếp API backend. Giao diện dedicated deployment không hiển thị tenant/customer switcher. Ma trận đầy đủ nằm tại `docs/backend-frontend-gap-analysis-v1.0.md`.
 
 ## Sổ thay đổi kỹ thuật
 

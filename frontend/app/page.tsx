@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
+import { AppIcon } from "./components/app-icon";
 
 type View = "home" | "approvals" | "modules" | "resources" | "users" | "organizations" | "access" | "activity" | "files" | "settings";
 type AuthStep = "login" | "mfa";
@@ -22,20 +23,64 @@ type AccessUser = { id:string; email:string; displayName:string; enabled:boolean
 type AccessRole = { id:string; code:string; name:string; systemRole:boolean };
 type AccessPolicy = { id:string; code:string; resourceType:string; action:string; effect:string; condition:string; version:number; enabled:boolean };
 type Organization = { id:string; code:string; name:string; parentCode?:string; status:string; createdAt:string };
+type SessionData = { accessToken:string; refreshToken:string; expiresAt:string; user:UserInfo };
+type JobItem = { id:string; tenantKey:string; jobType:string; status:string; attempts:number; leasedBy?:string; availableAt?:string; lastError?:string; createdAt:string };
+type OutboxItem = { id:string; eventType:string; tenantKey:string; status:string; attempts:number; createdAt:string; availableAt:string; lastError?:string };
 type BootstrapData = {
   summary: { resources: number; modules: number; pendingOutbox: number; runningJobs: number; files: number; storageGb: number; coreVersion: string; environment: string };
   modules: ModuleItem[]; resources: ResourceItem[]; activities: ActivityItem[]; roles: RoleItem[]; files: FileItem[]; audit: AuditItem[]; settings: Record<string,string>;
+};
+
+const MODULE_ICONS: Record<string,string> = {
+  "audit-store":"shield", "event-outbox":"webhook", "local-identity":"users", "job-queue":"clock",
+  kernel:"cpu", permission:"lock", webhook:"webhook", "dynamic-resource":"database",
+  "file-management":"files", "control-plane":"sliders", "approval-domain":"clipboard-check",
 };
 
 function storedToken() {
   return typeof window === "undefined" ? "" : window.localStorage.getItem("core-access-token") || window.sessionStorage.getItem("core-access-token") || "";
 }
 
+function storedRefreshToken() {
+  return typeof window === "undefined" ? "" : window.localStorage.getItem("core-refresh-token") || window.sessionStorage.getItem("core-refresh-token") || "";
+}
+
+function persistSession(session: SessionData, remember: boolean) {
+  const target = remember ? window.localStorage : window.sessionStorage;
+  const other = remember ? window.sessionStorage : window.localStorage;
+  other.removeItem("core-access-token"); other.removeItem("core-refresh-token");
+  target.setItem("core-access-token", session.accessToken); target.setItem("core-refresh-token", session.refreshToken);
+}
+
+function clearSession() {
+  window.localStorage.removeItem("core-access-token"); window.localStorage.removeItem("core-refresh-token");
+  window.sessionStorage.removeItem("core-access-token"); window.sessionStorage.removeItem("core-refresh-token");
+}
+
+let sessionRefresh: Promise<boolean> | null = null;
+async function refreshSession(): Promise<boolean> {
+  if (sessionRefresh) return sessionRefresh;
+  const refreshToken = storedRefreshToken();
+  if (!refreshToken) return false;
+  sessionRefresh = fetch(`${API_URL}/api/v1/auth/refresh`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({refreshToken}) })
+    .then(async response => {
+      if (!response.ok) { clearSession(); return false; }
+      const session = await response.json() as SessionData;
+      persistSession(session, Boolean(window.localStorage.getItem("core-refresh-token")));
+      return true;
+    })
+    .catch(() => { clearSession(); return false; })
+    .finally(() => { sessionRefresh = null; });
+  return sessionRefresh;
+}
+
 async function apiRequest<T>(path:string, init:RequestInit = {}):Promise<T> {
-  const response = await fetch(`${API_URL}${path}`, {
+  const request = () => fetch(`${API_URL}${path}`, {
     ...init,
     headers: { Authorization:`Bearer ${storedToken()}`, ...(init.body ? {"Content-Type":"application/json"} : {}), ...init.headers }
   });
+  let response = await request();
+  if (response.status === 401 && path !== "/api/v1/auth/refresh" && await refreshSession()) response = await request();
   if (!response.ok) {
     const problem = await response.json().catch(() => ({}));
     throw new Error(problem.detail || "Thao tác không thành công.");
@@ -44,7 +89,7 @@ async function apiRequest<T>(path:string, init:RequestInit = {}):Promise<T> {
   return response.json() as Promise<T>;
 }
 
-function LoginScreen({ onAuthenticated }: { onAuthenticated: (token: string, remember: boolean) => void }) {
+function LoginScreen({ onAuthenticated }: { onAuthenticated: (session: SessionData, remember: boolean) => void }) {
   const [step, setStep] = useState<AuthStep>("login");
   const [email, setEmail] = useState("admin@core.local");
   const [password, setPassword] = useState("");
@@ -65,7 +110,7 @@ function LoginScreen({ onAuthenticated }: { onAuthenticated: (token: string, rem
       const body = await response.json();
       if (!response.ok) throw new Error(body.detail ?? "Không thể đăng nhập.");
       if (body.mfaRequired === false && body.session?.accessToken) {
-        onAuthenticated(body.session.accessToken, remember);
+        onAuthenticated(body.session as SessionData, remember);
       } else if (body.challengeId) {
         setChallengeId(body.challengeId); setStep("mfa");
       } else {
@@ -84,7 +129,7 @@ function LoginScreen({ onAuthenticated }: { onAuthenticated: (token: string, rem
       const response = await fetch(`${API_URL}/api/v1/auth/mfa`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ challengeId, code: otp, remember }) });
       const body = await response.json();
       if (!response.ok) throw new Error(body.detail ?? "Mã xác thực không hợp lệ.");
-      onAuthenticated(body.accessToken, remember);
+      onAuthenticated(body as SessionData, remember);
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Không thể xác thực."); }
     finally { setLoading(false); }
   };
@@ -92,7 +137,7 @@ function LoginScreen({ onAuthenticated }: { onAuthenticated: (token: string, rem
   return <div className="auth-page">
     <section className="auth-brand-panel" aria-label="Giới thiệu Core Platform">
       <div className="auth-brand"><div className="brand-mark large"><i /><i /><i /><i /></div><div><strong>Core</strong><span>Platform</span></div></div>
-      <div className="auth-message"><span className="auth-kicker">Enterprise application foundation</span><h1>Nền tảng cốt lõi.<br />Sẵn sàng để mở rộng.</h1><p>Quản trị modules, tài nguyên, phân quyền và vận hành hệ thống từ một trung tâm duy nhất.</p></div>
+      <div className="auth-message"><span className="auth-kicker">Enterprise application foundation</span><h1>Giải pháp tối ưu hóa vận hành doanh nghiệp</h1><p>Quản trị vận hành, tài nguyên, phân quyền từ một trung tâm duy nhất.</p></div>
       <div className="auth-trust"><div><StatusDot /><span>Hệ thống hoạt động ổn định</span></div><small>Core v1.0.0-rc.4 · Secure access</small></div>
     </section>
     <section className="auth-form-panel">
@@ -106,10 +151,10 @@ function LoginScreen({ onAuthenticated }: { onAuthenticated: (token: string, rem
             {error && <p className="auth-error" role="alert">{error}</p>}
             <button className="auth-submit" disabled={loading}>{loading ? "Đang xác thực..." : "Tiếp tục"}<span>→</span></button>
           </form>
-          <div className="auth-security"><span>◆</span><p><strong>Kết nối được bảo vệ</strong><small>Phiên đăng nhập được mã hóa và ghi nhận audit.</small></p></div>
+          <div className="auth-security"><span><AppIcon name="lock" size={15}/></span><p><strong>Kết nối được bảo vệ</strong><small>Phiên đăng nhập được mã hóa và ghi nhận audit.</small></p></div>
         </> : <>
           <button className="auth-back" onClick={() => { setStep("login"); setError(""); }}>← Quay lại</button>
-          <div className="auth-heading"><span className="mfa-icon">✓</span><h2>Xác thực hai lớp</h2><p>Nhập mã 6 chữ số từ ứng dụng xác thực của bạn.</p></div>
+          <div className="auth-heading"><span className="mfa-icon"><AppIcon name="shield" size={22}/></span><h2>Xác thực hai lớp</h2><p>Nhập mã 6 chữ số từ ứng dụng xác thực của bạn.</p></div>
           <form onSubmit={submitOtp} noValidate>
             <label>Mã xác thực<input className="otp-input" autoFocus inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))} placeholder="000000" /></label>
             {error && <p className="auth-error" role="alert">{error}</p>}
@@ -152,7 +197,7 @@ function Overview({ onNavigate, data, displayName }: { onNavigate: (view: View) 
       />
 
       <section className="health-banner" aria-label="Trạng thái hệ thống">
-        <div className="health-mark"><span>✓</span></div>
+        <div className="health-mark"><AppIcon name="check-circle" size={18}/></div>
         <div className="health-copy">
           <div className="health-title"><strong>Tất cả dịch vụ cốt lõi đang hoạt động</strong><span className="live-pill"><StatusDot /> Live</span></div>
           <p>Dữ liệu tổng hợp trực tiếp từ backend · Các trạng thái lỗi sẽ được hiển thị tại khu vực vận hành</p>
@@ -162,19 +207,19 @@ function Overview({ onNavigate, data, displayName }: { onNavigate: (view: View) 
 
       <section className="metric-grid" aria-label="Chỉ số chính">
         <article className="metric-card">
-          <div className="metric-icon blue">◇</div><span className="metric-label">Resource records</span>
+          <div className="metric-icon blue"><AppIcon name="database"/></div><span className="metric-label">Resource records</span>
           <strong className="metric-value">{summary.resources.toLocaleString("vi-VN")}</strong><span className="metric-trend positive">Live</span><small>dữ liệu từ PostgreSQL</small>
         </article>
         <article className="metric-card">
-          <div className="metric-icon violet">◫</div><span className="metric-label">Modules hoạt động</span>
+          <div className="metric-icon violet"><AppIcon name="modules"/></div><span className="metric-label">Modules hoạt động</span>
           <strong className="metric-value">{data.modules.filter(x => x.status !== "DISABLED").length} <em>/ {summary.modules}</em></strong><span className="metric-trend neutral">Đã đăng ký</span><small>module runtime</small>
         </article>
         <article className="metric-card">
-          <div className="metric-icon amber">↯</div><span className="metric-label">Outbox đang chờ</span>
+          <div className="metric-icon amber"><AppIcon name="webhook"/></div><span className="metric-label">Outbox đang chờ</span>
           <strong className="metric-value">{summary.pendingOutbox}</strong><span className="metric-trend warning">Pending</span><small>outbox chờ xử lý</small>
         </article>
         <article className="metric-card">
-          <div className="metric-icon teal">◷</div><span className="metric-label">Background jobs</span>
+          <div className="metric-icon teal"><AppIcon name="clock"/></div><span className="metric-label">Background jobs</span>
           <strong className="metric-value">{summary.runningJobs}</strong><span className="metric-trend positive">Live</span><small>tác vụ đang xử lý</small>
         </article>
       </section>
@@ -185,7 +230,7 @@ function Overview({ onNavigate, data, displayName }: { onNavigate: (view: View) 
           <div className="activity-list">
             {activities.slice(0, 4).map((item) => (
               <div className="activity-row" key={item.id}>
-                <div className={`activity-icon ${item.kind.toLowerCase()}`}>{item.kind === "EVENT" ? "↯" : "◷"}</div>
+                <div className={`activity-icon ${item.kind.toLowerCase()}`}><AppIcon name={item.kind === "EVENT" ? "webhook" : "clock"} size={15}/></div>
                 <div className="activity-main"><strong>{item.name}</strong><span>{item.metadata}</span></div>
                 <span className={`state ${item.status.toLowerCase()}`}>{item.status}</span>
                 <time>{new Date(item.occurredAt).toLocaleTimeString("vi-VN")}</time>
@@ -196,9 +241,9 @@ function Overview({ onNavigate, data, displayName }: { onNavigate: (view: View) 
 
         <aside className="panel quick-panel">
           <div className="panel-header"><div><h2>Truy cập nhanh</h2><p>Các tác vụ thường dùng</p></div></div>
-          <button onClick={() => onNavigate("modules")}><span className="quick-icon">◫</span><div><strong>Quản lý modules</strong><small>Bật, tắt và kiểm tra phiên bản</small></div><b>→</b></button>
-          <button onClick={() => onNavigate("access")}><span className="quick-icon">◎</span><div><strong>Phân quyền</strong><small>Vai trò, policy và phạm vi</small></div><b>→</b></button>
-          <button onClick={() => onNavigate("files")}><span className="quick-icon">▱</span><div><strong>Kho tệp</strong><small>{summary.files.toLocaleString("vi-VN")} tệp · {summary.storageGb.toFixed(2)} GB</small></div><b>→</b></button>
+          <button onClick={() => onNavigate("modules")}><span className="quick-icon"><AppIcon name="modules"/></span><div><strong>Quản lý modules</strong><small>Bật, tắt và kiểm tra phiên bản</small></div><b>→</b></button>
+          <button onClick={() => onNavigate("access")}><span className="quick-icon"><AppIcon name="shield"/></span><div><strong>Phân quyền</strong><small>Vai trò, policy và phạm vi</small></div><b>→</b></button>
+          <button onClick={() => onNavigate("files")}><span className="quick-icon"><AppIcon name="files"/></span><div><strong>Kho tệp</strong><small>{summary.files.toLocaleString("vi-VN")} tệp · {summary.storageGb.toFixed(2)} GB</small></div><b>→</b></button>
         </aside>
       </div>
 
@@ -207,13 +252,19 @@ function Overview({ onNavigate, data, displayName }: { onNavigate: (view: View) 
 }
 
 function Modules({ items, onStatus }: { items: ModuleItem[]; onStatus: (item: ModuleItem) => void }) {
+  const [query,setQuery]=useState("");
+  const [filter,setFilter]=useState<"ALL"|"ENABLED"|"ATTENTION">("ALL");
+  const enabledCount=items.filter(item=>item.status!=="DISABLED").length;
+  const attentionCount=items.filter(item=>item.status==="ATTENTION").length;
+  const filtered=items.filter(item=>`${item.name} ${item.moduleKey} ${item.description}`.toLowerCase().includes(query.toLowerCase()))
+    .filter(item=>filter==="ALL"||(filter==="ENABLED"?item.status!=="DISABLED":item.status==="ATTENTION"));
   return (
     <>
-      <PageTitle eyebrow="Runtime composition" title="Modules" description="Theo dõi capability, phiên bản và trạng thái của các module đã đóng gói trong deployment." action={<button className="secondary-button">Kiểm tra tương thích</button>} />
-      <div className="filter-row"><div className="search-field">⌕ <input aria-label="Tìm module" placeholder="Tìm theo tên hoặc capability..." /></div><button className="filter-chip active">Tất cả 8</button><button className="filter-chip">Đang bật 7</button><button className="filter-chip">Cần chú ý 1</button></div>
+      <PageTitle eyebrow="Runtime composition" title="Modules" description="Theo dõi capability, phiên bản và trạng thái của các module đã đóng gói trong deployment." />
+      <div className="filter-row"><div className="search-field"><AppIcon name="search" size={15}/><input value={query} onChange={event=>setQuery(event.target.value)} aria-label="Tìm module" placeholder="Tìm theo tên hoặc capability..." /></div><button className={`filter-chip ${filter==="ALL"?"active":""}`} onClick={()=>setFilter("ALL")}>Tất cả {items.length}</button><button className={`filter-chip ${filter==="ENABLED"?"active":""}`} onClick={()=>setFilter("ENABLED")}>Đang bật {enabledCount}</button><button className={`filter-chip ${filter==="ATTENTION"?"active":""}`} onClick={()=>setFilter("ATTENTION")}>Cần chú ý {attentionCount}</button></div>
       <section className="module-grid">
-        {items.map((item) => <article className="module-card" key={item.id}>
-          <div className="module-top"><div className="module-symbol">{item.name.slice(0, 2).toUpperCase()}</div><span className={`state ${item.status === "HEALTHY" ? "teal" : item.status === "ATTENTION" ? "amber" : "gray"}`}>{item.status}</span></div>
+        {filtered.map((item) => <article className="module-card" key={item.id}>
+          <div className="module-top"><div className="module-symbol"><AppIcon name={MODULE_ICONS[item.moduleKey]??"modules"} size={19}/></div><span className={`state ${item.status === "HEALTHY" ? "teal" : item.status === "ATTENTION" ? "amber" : "gray"}`}>{item.status}</span></div>
           <h3>{item.name}</h3><code>{item.moduleKey}</code><p>{item.description}</p>
           <div className="module-meta"><span>v{item.version}</span><span>{item.metric}</span></div>
           <button className="card-action" onClick={() => onStatus(item)}>{item.status === "DISABLED" ? "Bật module" : "Tắt module"} <span>→</span></button>
@@ -247,17 +298,18 @@ function DynamicConsole({ onChanged }: { onChanged: () => Promise<void> }) {
 
 function Resources({ items, onChanged }: { items: ResourceItem[]; onChanged: () => Promise<void> }) {
   const [query, setQuery] = useState("");
-  const filtered = items.filter((r) => `${r.name} ${r.ownerModule}`.toLowerCase().includes(query.toLowerCase()));
+  const [mode,setMode]=useState<"ALL"|"DOMAIN"|"DYNAMIC">("ALL");
+  const filtered = items.filter((r) => `${r.name} ${r.ownerModule}`.toLowerCase().includes(query.toLowerCase())).filter(item=>mode==="ALL"||item.storageMode===mode);
   return (
     <>
       <PageTitle eyebrow="Three-Plane Registry" title="Resources" description="Domain aggregate và Dynamic Resource cùng đăng ký capability nhưng giữ persistence độc lập." />
       <section className="panel table-panel">
-        <div className="table-tools"><div className="search-field wide">⌕ <input value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Tìm resource" placeholder="Tìm resource, module..." /></div><button className="filter-chip active">Tất cả</button><button className="filter-chip">Domain</button><button className="filter-chip">Dynamic</button></div>
+        <div className="table-tools"><div className="search-field wide"><AppIcon name="search" size={15}/><input value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Tìm resource" placeholder="Tìm resource, module..." /></div><button className={`filter-chip ${mode==="ALL"?"active":""}`} onClick={()=>setMode("ALL")}>Tất cả</button><button className={`filter-chip ${mode==="DOMAIN"?"active":""}`} onClick={()=>setMode("DOMAIN")}>Domain</button><button className={`filter-chip ${mode==="DYNAMIC"?"active":""}`} onClick={()=>setMode("DYNAMIC")}>Dynamic</button></div>
         <div className="data-table" role="table" aria-label="Danh sách resources">
           <div className="table-row table-head" role="row"><span>Tên resource</span><span>Storage mode</span><span>Owner module</span><span>Records</span><span>Schema</span><span>Cập nhật</span></div>
-          {filtered.map((item) => <button className="table-row" role="row" key={item.name}>
-            <span><b className="resource-glyph">◇</b><strong>{item.name}</strong></span><span><em className={`type-pill ${item.storageMode.toLowerCase()}`}>{item.storageMode}</em></span><span><code>{item.ownerModule}</code></span><span>{item.records.toLocaleString("vi-VN")}</span><span>{item.schemaVersion}</span><span>{new Date(item.updatedAt).toLocaleString("vi-VN")} <b>→</b></span>
-          </button>)}
+          {filtered.map((item) => <div className="table-row" role="row" key={item.name}>
+            <span><b className="resource-glyph"><AppIcon name="database" size={14}/></b><strong>{item.name}</strong></span><span><em className={`type-pill ${item.storageMode.toLowerCase()}`}>{item.storageMode}</em></span><span><code>{item.ownerModule}</code></span><span>{item.records.toLocaleString("vi-VN")}</span><span>{item.schemaVersion}</span><span>{new Date(item.updatedAt).toLocaleString("vi-VN")}</span>
+          </div>)}
         </div>
       </section>
       <DynamicConsole onChanged={onChanged} />
@@ -293,34 +345,53 @@ function Organizations() {
 
 function Access() {
   const [roles,setRoles]=useState<AccessRole[]>([]);const [policies,setPolicies]=useState<AccessPolicy[]>([]);const [code,setCode]=useState("");const [name,setName]=useState("");const [message,setMessage]=useState("");
+  const [policyCode,setPolicyCode]=useState("");const [resourceType,setResourceType]=useState("");const [action,setAction]=useState("READ");const [effect,setEffect]=useState("ALLOW");
   const load=async()=>{try{const [roleData,policyData]=await Promise.all([apiRequest<AccessRole[]>("/api/v1/access/roles"),apiRequest<AccessPolicy[]>("/api/v1/access/policies")]);setRoles(roleData);setPolicies(policyData);}catch(error){setMessage(error instanceof Error?error.message:"Không thể tải phân quyền");}};
   useEffect(()=>{void load();},[]);
   const createRole=async()=>{try{await apiRequest<AccessRole>("/api/v1/access/roles",{method:"POST",body:JSON.stringify({code,name})});setCode("");setName("");setMessage("Đã tạo vai trò.");await load();}catch(error){setMessage(error instanceof Error?error.message:"Không thể tạo vai trò");}};
+  const createPolicy=async()=>{try{await apiRequest<AccessPolicy>("/api/v1/access/policies",{method:"POST",body:JSON.stringify({code:policyCode,resourceType,action,effect,condition:"{}"})});setPolicyCode("");setResourceType("");setMessage("Đã tạo policy.");await load();}catch(error){setMessage(error instanceof Error?error.message:"Không thể tạo policy");}};
   return <><PageTitle eyebrow="Identity & authorization" title="Vai trò & phân quyền" description="Quản lý vai trò và policy. Backend luôn kiểm tra quyền theo nguyên tắc fail-closed." />{message&&<p className="operation-message" role="status">{message}</p>}
     <section className="access-summary"><div><span>Vai trò</span><strong>{roles.length}</strong><small>{roles.filter(role=>role.systemRole).length} vai trò hệ thống</small></div><div><span>Policies</span><strong>{policies.length}</strong><small>{policies.filter(policy=>policy.enabled).length} đang hiệu lực</small></div><div><span>Allow</span><strong>{policies.filter(policy=>policy.effect==="ALLOW").length}</strong><small>quy tắc cấp quyền</small></div><div><span>Deny</span><strong>{policies.filter(policy=>policy.effect==="DENY").length}</strong><small>được ưu tiên khi đánh giá</small></div></section>
     <section className="panel settings-form"><div className="form-grid"><label>Mã vai trò<input value={code} onChange={e=>setCode(e.target.value)} placeholder="department-manager" /></label><label>Tên vai trò<input value={name} onChange={e=>setName(e.target.value)} placeholder="Trưởng phòng" /></label></div><button className="primary-button" onClick={createRole}>＋ Tạo vai trò</button></section>
+    <section className="panel settings-form"><div className="panel-header"><div><h2>Tạo policy</h2><p>Policy được kiểm tra tại API theo nguyên tắc fail-closed.</p></div></div><div className="form-grid"><label>Mã policy<input value={policyCode} onChange={e=>setPolicyCode(e.target.value)} placeholder="customer-read" /></label><label>Resource type<input value={resourceType} onChange={e=>setResourceType(e.target.value)} placeholder="CUSTOMER" /></label><label>Action<select value={action} onChange={e=>setAction(e.target.value)}><option>READ</option><option>CREATE</option><option>UPDATE</option><option>DELETE</option><option>MANAGE</option></select></label><label>Effect<select value={effect} onChange={e=>setEffect(e.target.value)}><option>ALLOW</option><option>DENY</option></select></label></div><button className="primary-button" onClick={createPolicy}><AppIcon name="plus" size={14}/> Tạo policy</button></section>
     <div className="role-grid">{roles.map((role,index)=><article className="panel role-card" key={role.id}><div className={`role-badge ${["violet","blue","amber","teal"][index%4]}`}>{role.name.split(" ").map(value=>value[0]).join("").slice(0,2)}</div><div className="role-copy"><h3>{role.name}</h3><p><code>{role.code}</code></p></div><span className={`state ${role.systemRole?"amber":"teal"}`}>{role.systemRole?"SYSTEM":"CUSTOM"}</span></article>)}</div>
     <section className="panel table-panel"><div className="data-table"><div className="table-row table-head"><span>Policy</span><span>Resource</span><span>Action</span><span>Effect</span><span>Version</span><span>Trạng thái</span></div>{policies.map(policy=><div className="table-row" key={policy.id}><span><code>{policy.code}</code></span><span>{policy.resourceType}</span><span>{policy.action}</span><span><em className={`state ${policy.effect==="ALLOW"?"teal":"amber"}`}>{policy.effect}</em></span><span>v{policy.version}</span><span>{policy.enabled?"Đang hiệu lực":"Đã tắt"}</span></div>)}</div></section>
-    <section className="panel policy-banner"><div className="policy-icon">✓</div><div><h3>Permission engine đang ở chế độ fail-closed</h3><p>Menu chỉ hỗ trợ khám phá chức năng; API vẫn là điểm thực thi quyền bắt buộc.</p></div></section>
+    <section className="panel policy-banner"><div className="policy-icon"><AppIcon name="shield"/></div><div><h3>Permission engine đang ở chế độ fail-closed</h3><p>Menu chỉ hỗ trợ khám phá chức năng; API vẫn là điểm thực thi quyền bắt buộc.</p></div></section>
   </>;
 }
 
 function Activity({ items }: { items: ActivityItem[] }) {
+  const [jobs,setJobs]=useState<JobItem[]>([]);const [outbox,setOutbox]=useState<OutboxItem[]>([]);const [message,setMessage]=useState("");const [loading,setLoading]=useState(false);
+  const load=async()=>{setLoading(true);try{const [jobItems,outboxItems]=await Promise.all([apiRequest<JobItem[]>("/api/v1/control-plane/jobs"),apiRequest<OutboxItem[]>("/api/v1/control-plane/outbox")]);setJobs(jobItems);setOutbox(outboxItems);setMessage("");}catch(error){setMessage(error instanceof Error?error.message:"Không thể tải dữ liệu vận hành");}finally{setLoading(false);}};
+  useEffect(()=>{void load();},[]);
+  const jobAction=async(item:JobItem,operation:"retry"|"cancel")=>{try{await apiRequest<JobItem>(`/api/v1/control-plane/jobs/${item.id}/${operation}`,{method:"POST"});await load();}catch(error){setMessage(error instanceof Error?error.message:"Không thể cập nhật job");}};
+  const replay=async(item:OutboxItem)=>{try{await apiRequest(`/api/v1/control-plane/outbox/${item.id}/replay`,{method:"POST"});await load();}catch(error){setMessage(error instanceof Error?error.message:"Không thể replay event");}};
+  const pendingOutbox=outbox.filter(item=>item.status==="PENDING").length;
+  const runningJobs=jobs.filter(item=>item.status==="RUNNING").length;
+  const retrying=jobs.filter(item=>item.status==="RETRYING").length+outbox.filter(item=>item.status==="RETRYING").length;
+  const dead=jobs.filter(item=>item.status==="DEAD").length+outbox.filter(item=>item.status==="DEAD").length;
   return (
     <>
-      <PageTitle eyebrow="Durable processing" title="Events & Jobs" description="Theo dõi outbox, consumer, background jobs, retry và dead-letter flow." action={<button className="secondary-button">↻ Làm mới</button>} />
-      <section className="queue-grid"><div className="queue-card"><span>Outbox pending</span><strong>12</strong><div className="mini-bar"><i style={{width:"22%"}} /></div><small>Cũ nhất 48 giây</small></div><div className="queue-card"><span>Jobs running</span><strong>3</strong><div className="mini-bar blue"><i style={{width:"38%"}} /></div><small>7 workers sẵn sàng</small></div><div className="queue-card"><span>Retrying</span><strong>2</strong><div className="mini-bar amber"><i style={{width:"14%"}} /></div><small>Không có dead job</small></div><div className="queue-card"><span>Consumer lag</span><strong>0.8s</strong><div className="mini-bar violet"><i style={{width:"11%"}} /></div><small>Trong ngưỡng SLO</small></div></section>
-      <section className="panel timeline-panel"><div className="panel-header"><div><h2>Live activity stream</h2><p>At-least-once delivery · idempotent consumers</p></div><span className="live-pill"><StatusDot /> Dữ liệu thật</span></div>{items.map((item) => <div className="activity-row expanded" key={item.id}><div className={`activity-icon ${item.kind.toLowerCase()}`}>{item.kind === "EVENT" ? "↯" : "◷"}</div><div className="activity-main"><strong>{item.name}</strong><span>{item.metadata}</span></div><span className={`state ${item.status.toLowerCase()}`}>{item.status}</span><time>{new Date(item.occurredAt).toLocaleString("vi-VN")}</time><button>Chi tiết</button></div>)}</section>
+      <PageTitle eyebrow="Durable processing" title="Events & Jobs" description="Theo dõi outbox, background jobs, retry và dead-letter flow bằng dữ liệu runtime." action={<button className="secondary-button" disabled={loading} onClick={()=>void load()}><AppIcon name="refresh" size={14}/> {loading?"Đang tải":"Làm mới"}</button>} />
+      {message&&<p className="operation-message" role="status">{message}</p>}
+      <section className="queue-grid"><div className="queue-card"><span>Outbox pending</span><strong>{pendingOutbox}</strong><small>{outbox.length} event gần nhất</small></div><div className="queue-card"><span>Jobs running</span><strong>{runningJobs}</strong><small>{jobs.length} job gần nhất</small></div><div className="queue-card"><span>Đang retry</span><strong>{retrying}</strong><small>Job và outbox</small></div><div className="queue-card"><span>Dead-letter</span><strong>{dead}</strong><small>Cần quản trị viên xử lý</small></div></section>
+      <div className="operations-grid">
+        <section className="panel operation-card"><div className="panel-header"><div><h2>Background jobs</h2><p>Retry và hủy theo trạng thái hợp lệ</p></div><span className="live-pill"><StatusDot/> API thật</span></div><div className="operation-list">{jobs.slice(0,20).map(item=><article key={item.id}><span className="operation-icon"><AppIcon name="clock" size={15}/></span><div><strong>{item.jobType}</strong><small>{item.tenantKey} · {item.attempts} lần chạy{item.lastError?` · ${item.lastError}`:""}</small></div><em className={`state ${item.status.toLowerCase()}`}>{item.status}</em><div className="operation-actions">{["DEAD","RETRYING","CANCELLED"].includes(item.status)&&<button className="text-button" onClick={()=>void jobAction(item,"retry")}>Chạy lại</button>}{["PENDING","RETRYING"].includes(item.status)&&<button className="text-button danger-text" onClick={()=>void jobAction(item,"cancel")}>Hủy</button>}</div></article>)}{jobs.length===0&&<p className="empty-state">Chưa có background job.</p>}</div></section>
+        <section className="panel operation-card"><div className="panel-header"><div><h2>Transactional outbox</h2><p>At-least-once delivery · idempotent consumer</p></div><span className="live-pill"><StatusDot/> API thật</span></div><div className="operation-list">{outbox.slice(0,20).map(item=><article key={item.id}><span className="operation-icon"><AppIcon name="webhook" size={15}/></span><div><strong>{item.eventType}</strong><small>{item.tenantKey} · {item.attempts} lần gửi{item.lastError?` · ${item.lastError}`:""}</small></div><em className={`state ${item.status.toLowerCase()}`}>{item.status}</em><div className="operation-actions">{["DEAD","DELIVERED"].includes(item.status)&&<button className="text-button" onClick={()=>void replay(item)}>Replay</button>}</div></article>)}{outbox.length===0&&<p className="empty-state">Chưa có outbox event.</p>}</div></section>
+      </div>
+      <section className="panel timeline-panel"><div className="panel-header"><div><h2>Hoạt động gần đây</h2><p>Dữ liệu tổng hợp từ runtime platform</p></div><span className="live-pill"><StatusDot /> Dữ liệu thật</span></div>{items.map((item) => <div className="activity-row expanded" key={item.id}><div className={`activity-icon ${item.kind.toLowerCase()}`}><AppIcon name={item.kind === "EVENT" ? "webhook" : "clock"} size={15}/></div><div className="activity-main"><strong>{item.name}</strong><span>{item.metadata}</span></div><span className={`state ${item.status.toLowerCase()}`}>{item.status}</span><time>{new Date(item.occurredAt).toLocaleString("vi-VN")}</time></div>)}</section>
     </>
   );
 }
 
 function Files({ items, storageGb, onUpload, onDownload }: { items: FileItem[]; storageGb: number; onUpload:(file:File)=>Promise<void>; onDownload:(item:FileItem)=>Promise<void> }) {
+  const [query,setQuery]=useState("");const [attentionOnly,setAttentionOnly]=useState(false);
+  const filtered=items.filter(item=>`${item.name} ${item.mediaType}`.toLowerCase().includes(query.toLowerCase())).filter(item=>!attentionOnly||item.status==="QUARANTINE");
   return (
     <>
-      <PageTitle eyebrow="Object storage" title="Tệp tin" description="Quản lý metadata, checksum, phân loại và nội dung file theo tenant." action={<label className="primary-button">↑ Tải tệp lên<input hidden type="file" onChange={e=>e.target.files?.[0]&&onUpload(e.target.files[0])}/></label>} />
-      <section className="storage-card"><div><span className="storage-icon">▱</span><div><strong>{storageGb.toFixed(2)} GB</strong><p>Dung lượng metadata file đã ghi nhận</p></div></div><div className="storage-progress"><i /></div><div className="storage-stats"><span>{items.length.toLocaleString("vi-VN")} tệp</span><span>{items.filter(x=>x.status === "QUARANTINE").length} quarantine</span><span>Dữ liệu từ PostgreSQL</span></div></section>
-      <section className="panel table-panel"><div className="table-tools"><div className="search-field wide">⌕ <input aria-label="Tìm tệp" placeholder="Tìm tên tệp, media type..." /></div><button className="filter-chip active">Tất cả</button><button className="filter-chip">Cần xử lý</button></div><div className="file-table"><div className="file-row file-head"><span>Tệp</span><span>Kích thước</span><span>Phân loại</span><span>Trạng thái</span><span>Cập nhật</span></div>{items.map((f) => <button className="file-row" key={f.id} onClick={()=>onDownload(f)}><span><b>▤</b><span><strong>{f.name}</strong><small>{f.mediaType}</small></span></span><span>{(f.sizeBytes/1024/1024).toFixed(2)} MB</span><span>{f.classification}</span><span><em className={`state ${f.status.toLowerCase()}`}>{f.status}</em></span><span>{new Date(f.updatedAt).toLocaleString("vi-VN")}　↓</span></button>)}</div></section>
+      <PageTitle eyebrow="Object storage" title="Tệp tin" description="Quản lý metadata, checksum, phân loại và nội dung file theo tenant." action={<label className="primary-button"><AppIcon name="upload" size={14}/> Tải tệp lên<input hidden type="file" onChange={e=>e.target.files?.[0]&&onUpload(e.target.files[0])}/></label>} />
+      <section className="storage-card"><div><span className="storage-icon"><AppIcon name="files"/></span><div><strong>{storageGb.toFixed(2)} GB</strong><p>Dung lượng metadata file đã ghi nhận</p></div></div><div className="storage-progress"><i /></div><div className="storage-stats"><span>{items.length.toLocaleString("vi-VN")} tệp</span><span>{items.filter(x=>x.status === "QUARANTINE").length} quarantine</span><span>Dữ liệu từ PostgreSQL</span></div></section>
+      <section className="panel table-panel"><div className="table-tools"><div className="search-field wide"><AppIcon name="search" size={15}/><input value={query} onChange={event=>setQuery(event.target.value)} aria-label="Tìm tệp" placeholder="Tìm tên tệp, media type..." /></div><button className={`filter-chip ${!attentionOnly?"active":""}`} onClick={()=>setAttentionOnly(false)}>Tất cả</button><button className={`filter-chip ${attentionOnly?"active":""}`} onClick={()=>setAttentionOnly(true)}>Cần xử lý</button></div><div className="file-table"><div className="file-row file-head"><span>Tệp</span><span>Kích thước</span><span>Phân loại</span><span>Trạng thái</span><span>Cập nhật</span></div>{filtered.map((f) => <button className="file-row" key={f.id} onClick={()=>onDownload(f)}><span><b><AppIcon name="file" size={15}/></b><span><strong>{f.name}</strong><small>{f.mediaType}</small></span></span><span>{(f.sizeBytes/1024/1024).toFixed(2)} MB</span><span>{f.classification}</span><span><em className={`state ${f.status.toLowerCase()}`}>{f.status}</em></span><span>{new Date(f.updatedAt).toLocaleString("vi-VN")} <AppIcon name="download" size={14}/></span></button>)}</div></section>
     </>
   );
 }
@@ -333,7 +404,7 @@ function Settings({ values, onSave }: { values: Record<string,string>; onSave: (
   return (
     <>
       <PageTitle eyebrow="Deployment configuration" title="Cấu hình" description="Thông tin môi trường và các chính sách vận hành đang có hiệu lực." action={<button className="primary-button" onClick={() => onSave([{key:"environment.name",value:name},{key:"environment.tier",value:tier},{key:"environment.region",value:region},{key:"environment.publicUrl",value:url}])}>Lưu thay đổi</button>} />
-      <div className="settings-layout"><aside className="settings-nav"><button className="active">Tổng quát</button><button>Bảo mật</button><button>Retention</button><button>Thông báo</button><button>Integrations</button></aside><section className="panel settings-form"><h2>Thông tin deployment</h2><p>Thay đổi được lưu vào PostgreSQL và ghi audit. Tenant kỹ thuật không được trình bày như một chức năng SaaS.</p><label>Tên môi trường<input value={name} onChange={e=>setName(e.target.value)} /></label><div className="form-grid"><label>Service tier<select value={tier} onChange={e=>setTier(e.target.value)}><option value="pilot">Pilot</option><option value="standard">Standard</option><option value="critical">Critical</option></select></label><label>Khu vực<input value={region} onChange={e=>setRegion(e.target.value)} /></label></div><label>Public base URL<input value={url} onChange={e=>setUrl(e.target.value)} /></label></section></div>
+      <div className="settings-layout single"><section className="panel settings-form"><h2>Thông tin deployment</h2><p>Thay đổi được lưu vào PostgreSQL và ghi audit. Tenant kỹ thuật không được trình bày như một chức năng SaaS.</p><label>Tên môi trường<input value={name} onChange={e=>setName(e.target.value)} /></label><div className="form-grid"><label>Service tier<select value={tier} onChange={e=>setTier(e.target.value)}><option value="pilot">Pilot</option><option value="standard">Standard</option><option value="critical">Critical</option></select></label><label>Khu vực<input value={region} onChange={e=>setRegion(e.target.value)} /></label></div><label>Public base URL<input value={url} onChange={e=>setUrl(e.target.value)} /></label></section></div>
     </>
   );
 }
@@ -342,10 +413,10 @@ function BusinessHome({ section, onOpen }: { section: NavigationSection; onOpen:
   const pages = section.items.filter(item => item.type === "PAGE" && item.viewKey !== "home");
   return <>
     <PageTitle eyebrow="Ứng dụng doanh nghiệp" title="Trang chủ" description="Các phân hệ được đăng ký động từ module đang bật và chỉ hiển thị theo quyền của tài khoản." />
-    <section className="business-hero panel"><div><span className="business-hero-icon">▦</span><p className="eyebrow">Điều hướng hợp nhất</p><h2>Chọn phân hệ để bắt đầu</h2><p>Module mới tự đăng ký vào đúng nhóm menu. Giao diện không tách Workspace và không giả định mô hình SaaS.</p></div><strong>{pages.length}<small>phân hệ được cấp quyền</small></strong></section>
+    <section className="business-hero panel"><div><span className="business-hero-icon"><AppIcon name="leaf" size={24}/></span><p className="eyebrow">Điều hướng hợp nhất</p><h2>Chọn phân hệ để bắt đầu</h2><p>Module mới tự đăng ký vào đúng nhóm menu. Giao diện không tách Workspace và không giả định mô hình SaaS.</p></div><strong>{pages.length}<small>phân hệ được cấp quyền</small></strong></section>
     <section className="business-module-grid" aria-label="Phân hệ nghiệp vụ">
-      {pages.map(item => <button key={item.key} className="business-module-card" onClick={() => onOpen(item)}><span>{item.icon}</span><div><small>{item.ownerModule}</small><strong>{item.label}</strong><p>{item.keywords.slice(0,3).join(" · ")}</p></div><b>→</b></button>)}
-      {pages.length === 0 && <div className="empty-workspace"><span>◇</span><h2>Chưa có phân hệ được cấp quyền</h2><p>Liên hệ quản trị viên để bật module hoặc gán policy phù hợp.</p></div>}
+      {pages.map(item => <button key={item.key} className="business-module-card" onClick={() => onOpen(item)}><span><AppIcon name={item.icon}/></span><div><small>{item.ownerModule}</small><strong>{item.label}</strong><p>{item.keywords.slice(0,3).join(" · ")}</p></div><b>→</b></button>)}
+      {pages.length === 0 && <div className="empty-workspace"><span><AppIcon name="apps" size={24}/></span><h2>Chưa có phân hệ được cấp quyền</h2><p>Liên hệ quản trị viên để bật module hoặc gán policy phù hợp.</p></div>}
     </section>
   </>;
 }
@@ -357,7 +428,7 @@ export default function Home() {
   const [apiOnline,setApiOnline]=useState(false);const [data,setData]=useState<BootstrapData|null>(null);const [operationError,setOperationError]=useState("");
   const authHeaders=()=>({Authorization:`Bearer ${storedToken()}`});
 
-  useEffect(()=>{const existing=storedToken();if(!existing){setAuthReady(true);return;}fetch(`${API_URL}/api/v1/auth/me`,{headers:{Authorization:`Bearer ${existing}`}}).then(async response=>{if(!response.ok)throw new Error();setUser(await response.json());setAuthenticated(true);setApiOnline(true);}).catch(()=>{window.localStorage.removeItem("core-access-token");window.sessionStorage.removeItem("core-access-token");}).finally(()=>setAuthReady(true));},[]);
+  useEffect(()=>{const existing=storedToken();if(!existing){setAuthReady(true);return;}void apiRequest<UserInfo>("/api/v1/auth/me").then(account=>{setUser(account);setAuthenticated(true);setApiOnline(true);}).catch(()=>clearSession()).finally(()=>setAuthReady(true));},[]);
 
   const selectRoute=(model:NavigationModel)=>{const pages=model.sections.flatMap(section=>section.items.filter(item=>item.type==="PAGE").map(item=>({section,item})));const route=window.location.pathname;const selected=pages.find(entry=>entry.item.route===route)||pages.find(entry=>entry.item.key==="core.home")||pages[0];if(selected){setView(selected.item.viewKey as View);setExpandedGroup(selected.item.parentKey);if(route!==selected.item.route)window.history.replaceState(null,"",selected.item.route);}};
   const loadNavigation=async()=>{const model=await apiRequest<NavigationModel>("/api/v1/navigation/me");setNavigation(model);selectRoute(model);return model;};
@@ -380,10 +451,10 @@ export default function Home() {
   const changeModuleStatus=async(item:ModuleItem)=>{try{await mutate(`/api/v1/control-plane/modules/${item.id}/status`,"PATCH",{status:item.status==="DISABLED"?"HEALTHY":"DISABLED"});await loadNavigation();}catch{}};
   const uploadFile=async(file:File)=>{setOperationError("");const form=new FormData();form.append("file",file);const response=await fetch(`${API_URL}/api/v1/files?classification=INTERNAL`,{method:"POST",headers:authHeaders(),body:form});if(!response.ok){const problem=await response.json().catch(()=>({}));setOperationError(problem.detail||"Upload thất bại");return;}await refresh();};
   const downloadFile=async(item:FileItem)=>{const response=await fetch(`${API_URL}/api/v1/files/${item.id}/content`,{headers:authHeaders()});if(!response.ok){const problem=await response.json().catch(()=>({}));setOperationError(problem.detail||"Nội dung file chưa sẵn sàng");return;}const url=URL.createObjectURL(await response.blob());const anchor=document.createElement("a");anchor.href=url;anchor.download=item.name;anchor.click();URL.revokeObjectURL(url);};
-  const signIn=(accessToken:string,remember:boolean)=>{(remember?window.localStorage:window.sessionStorage).setItem("core-access-token",accessToken);setNavigation(null);setApiOnline(true);setAuthenticated(true);};
-  const signOut=async()=>{const accessToken=storedToken();if(accessToken)await fetch(`${API_URL}/api/v1/auth/logout`,{method:"POST",headers:{Authorization:`Bearer ${accessToken}`}}).catch(()=>undefined);window.localStorage.removeItem("core-access-token");window.sessionStorage.removeItem("core-access-token");window.history.replaceState(null,"","/");setAuthenticated(false);setNavigation(null);setData(null);setUser(null);setLogoutOpen(false);setProfileOpen(false);setView("home");};
+  const signIn=(session:SessionData,remember:boolean)=>{persistSession(session,remember);setUser(session.user);setNavigation(null);setApiOnline(true);setAuthenticated(true);};
+  const signOut=async()=>{const accessToken=storedToken();if(accessToken)await fetch(`${API_URL}/api/v1/auth/logout`,{method:"POST",headers:{Authorization:`Bearer ${accessToken}`}}).catch(()=>undefined);clearSession();window.history.replaceState(null,"","/");setAuthenticated(false);setNavigation(null);setData(null);setUser(null);setLogoutOpen(false);setProfileOpen(false);setView("home");};
   const initials=(user?.displayName||user?.email||"CP").split(/\s+/).map(part=>part[0]).join("").slice(0,2).toUpperCase();const settingsItem=allPages.find(entry=>entry.item.viewKey==="settings")?.item;const businessSection=sections.find(section=>section.key==="business");
-  const renderPageButton=(item:NavigationItem,compact=false)=><div className={`nav-entry ${compact?"compact":""}`} key={item.key}><button className={view===item.viewKey?"active":""} onClick={()=>openItem(item)}><span className="nav-icon">{item.icon}</span><span>{item.label}</span></button><button className={`favorite-toggle ${navigation?.favoriteKeys.includes(item.key)?"selected":""}`} aria-label={`${navigation?.favoriteKeys.includes(item.key)?"Bỏ":"Thêm"} yêu thích ${item.label}`} onClick={()=>toggleFavorite(item)}>☆</button></div>;
+  const renderPageButton=(item:NavigationItem,compact=false)=><div className={`nav-entry ${compact?"compact":""}`} key={item.key}><button className={view===item.viewKey?"active":""} onClick={()=>openItem(item)}><span className="nav-icon"><AppIcon name={item.icon} size={17}/></span><span>{item.label}</span></button><button className={`favorite-toggle ${navigation?.favoriteKeys.includes(item.key)?"selected":""}`} aria-label={`${navigation?.favoriteKeys.includes(item.key)?"Bỏ":"Thêm"} yêu thích ${item.label}`} onClick={()=>toggleFavorite(item)}><AppIcon name="star" size={14}/></button></div>;
 
   if(!authReady)return <div className="auth-loading" aria-label="Đang kiểm tra phiên đăng nhập"><span/></div>;
   if(!authenticated)return <LoginScreen onAuthenticated={signIn}/>;
@@ -394,16 +465,16 @@ export default function Home() {
       <div className="brand"><div className="brand-mark"><i/><i/><i/><i/></div><div><strong>Core</strong><span>Platform</span></div></div>
       <nav aria-label="Điều hướng ứng dụng">
         {favoriteEntries.length>0&&<><p>Yêu thích</p>{favoriteEntries.slice(0,5).map(entry=>renderPageButton(entry.item,true))}</>}
-        {sections.map(section=><section className="nav-section" key={section.key}><p>{section.label}</p>{section.items.filter(item=>!item.parentKey).map(item=>item.type==="GROUP"?<div className={`nav-group ${expandedGroup===item.key?"open":""}`} key={item.key}><button className="nav-group-trigger" onClick={()=>setExpandedGroup(expandedGroup===item.key?"":item.key)}><span className="nav-icon">{item.icon}</span><span>{item.label}</span><b>⌄</b></button>{expandedGroup===item.key&&<div className="nav-children">{section.items.filter(child=>child.parentKey===item.key&&child.type==="PAGE").map(child=>renderPageButton(child))}</div>}</div>:renderPageButton(item))}</section>)}
+        {sections.map(section=><section className="nav-section" key={section.key}><p>{section.label}</p>{section.items.filter(item=>!item.parentKey).map(item=>item.type==="GROUP"?<div className={`nav-group ${expandedGroup===item.key?"open":""}`} key={item.key}><button className="nav-group-trigger" onClick={()=>setExpandedGroup(expandedGroup===item.key?"":item.key)}><span className="nav-icon"><AppIcon name={item.icon} size={17}/></span><span>{item.label}</span><b><AppIcon name="chevron-down" size={13}/></b></button>{expandedGroup===item.key&&<div className="nav-children">{section.items.filter(child=>child.parentKey===item.key&&child.type==="PAGE").map(child=>renderPageButton(child))}</div>}</div>:renderPageButton(item))}</section>)}
       </nav>
       <div className="sidebar-status"><div><StatusDot tone={apiOnline?"teal":"amber"}/><strong>{apiOnline?"Backend connected":"Backend unavailable"}</strong></div><span>Navigation {navigation.revision}</span></div>
     </aside>
     {sidebarOpen&&<button className="sidebar-scrim" aria-label="Đóng menu" onClick={()=>setSidebarOpen(false)}/>}
-    <div className="main-area"><header className="topbar"><button className="mobile-menu" aria-label="Mở menu" onClick={()=>setSidebarOpen(true)}>☰</button><div className="breadcrumb"><span>{currentSection?.label||"Ứng dụng"}</span><b>/</b><strong>{currentLabel}</strong></div><button className="command-trigger" onClick={()=>setCommandOpen(true)}><span>⌕</span> Tìm module hoặc chức năng... <kbd>⌘ K</kbd></button><div className="top-actions"><button aria-label="Trợ giúp">?</button><button aria-label="Thông báo" className="notification-button" onClick={()=>{setNotificationsOpen(!notificationsOpen);setProfileOpen(false);}}>♢<i/></button><button className="profile-button" aria-expanded={profileOpen} onClick={()=>{setProfileOpen(!profileOpen);setNotificationsOpen(false);}}><span>{initials}</span><div><strong>{user?.displayName||"Người dùng"}</strong><small>{user?.role==="PLATFORM_ADMIN"?"Quản trị viên hệ thống":"Người dùng ứng dụng"}</small></div><b>⌄</b></button></div>
-      {notificationsOpen&&<div className="notification-popover"><div><strong>Thông báo</strong><button onClick={()=>setNotificationsOpen(false)}>×</button></div><article><span className="notice teal">✓</span><p><strong>Navigation Registry đã đồng bộ</strong><small>Menu được lọc theo module, quyền và nhiệm vụ hiện tại.</small></p><time>Live</time></article></div>}
-      {profileOpen&&<div className="profile-popover"><div className="profile-summary"><span>{initials}</span><p><strong>{user?.displayName||"Người dùng"}</strong><small>{user?.email}</small></p></div><div className="profile-role"><span>{user?.role==="PLATFORM_ADMIN"?"SYSTEM ADMINISTRATOR":"APPLICATION USER"}</span><em>Dedicated deployment</em></div>{settingsItem&&<button onClick={()=>{openItem(settingsItem);setProfileOpen(false);}}><span>⚙</span> Hồ sơ & bảo mật</button>}<button onClick={()=>setLogoutOpen(true)} className="logout-action"><span>↪</span> Đăng xuất</button></div>}
+    <div className="main-area"><header className="topbar"><button className="mobile-menu" aria-label="Mở menu" onClick={()=>setSidebarOpen(true)}><AppIcon name="menu"/></button><div className="breadcrumb"><span>{currentSection?.label||"Ứng dụng"}</span><b>/</b><strong>{currentLabel}</strong></div><button className="command-trigger" onClick={()=>setCommandOpen(true)}><AppIcon name="search" size={15}/> Tìm module hoặc chức năng... <kbd>Ctrl K</kbd></button><div className="top-actions"><button aria-label="Thông báo" className="notification-button" onClick={()=>{setNotificationsOpen(!notificationsOpen);setProfileOpen(false);}}><AppIcon name="bell" size={17}/><i/></button><button className="profile-button" aria-expanded={profileOpen} onClick={()=>{setProfileOpen(!profileOpen);setNotificationsOpen(false);}}><span>{initials}</span><div><strong>{user?.displayName||"Người dùng"}</strong><small>{user?.role==="PLATFORM_ADMIN"?"Quản trị viên hệ thống":"Người dùng ứng dụng"}</small></div><b><AppIcon name="chevron-down" size={13}/></b></button></div>
+      {notificationsOpen&&<div className="notification-popover"><div><strong>Thông báo</strong><button aria-label="Đóng thông báo" onClick={()=>setNotificationsOpen(false)}><AppIcon name="x" size={16}/></button></div><article><span className="notice teal"><AppIcon name="check-circle" size={15}/></span><p><strong>Navigation Registry đã đồng bộ</strong><small>Menu được lọc theo module, quyền và nhiệm vụ hiện tại.</small></p><time>Live</time></article></div>}
+      {profileOpen&&<div className="profile-popover"><div className="profile-summary"><span>{initials}</span><p><strong>{user?.displayName||"Người dùng"}</strong><small>{user?.email}</small></p></div><div className="profile-role"><span>{user?.role==="PLATFORM_ADMIN"?"SYSTEM ADMINISTRATOR":"APPLICATION USER"}</span><em>Dedicated deployment</em></div>{settingsItem&&<button onClick={()=>{openItem(settingsItem);setProfileOpen(false);}}><span><AppIcon name="settings" size={15}/></span> Hồ sơ & bảo mật</button>}<button onClick={()=>setLogoutOpen(true)} className="logout-action"><span><AppIcon name="logout" size={15}/></span> Đăng xuất</button></div>}
     </header><main>{operationError&&<p className="auth-error" role="alert">{operationError}</p>}{view==="home"&&businessSection&&(data?<Overview onNavigate={navigate} data={data} displayName={user?.displayName}/>:<BusinessHome section={businessSection} onOpen={openItem}/>)}{view==="approvals"&&<DemoApprovalWorkspace apiUrl={API_URL}/>} {data&&view==="modules"&&<Modules items={data.modules} onStatus={changeModuleStatus}/>} {data&&view==="resources"&&<Resources items={data.resources} onChanged={refresh}/>} {view==="users"&&<Users/>} {view==="organizations"&&<Organizations/>} {view==="access"&&<Access/>} {data&&view==="activity"&&<Activity items={data.activities}/>} {data&&view==="files"&&<Files items={data.files} storageGb={data.summary.storageGb} onUpload={uploadFile} onDownload={downloadFile}/>} {data&&view==="settings"&&<Settings values={data.settings} onSave={items=>mutate("/api/v1/control-plane/settings","PUT",items)}/>} {currentSection?.key==="system-administration"&&!data&&<div className="auth-loading" aria-label="Đang tải dữ liệu quản trị"><span/></div>}</main></div>
-    {commandOpen&&<div className="modal-backdrop" role="presentation" onMouseDown={()=>setCommandOpen(false)}><section className="command-modal" role="dialog" aria-modal="true" aria-label="Tìm chức năng" onMouseDown={event=>event.stopPropagation()}><div className="command-input"><span>⌕</span><input autoFocus value={commandQuery} onChange={event=>setCommandQuery(event.target.value)} placeholder="Tìm module hoặc chức năng..."/><kbd>ESC</kbd></div><p>{commandQuery?"Kết quả":"Gần đây và chức năng được cấp quyền"}</p>{commandEntries.slice(0,12).map(entry=><button key={entry.item.key} onClick={()=>openItem(entry.item)}><span>{entry.item.icon}</span><div><strong>{entry.item.label}</strong><small>{entry.section.label} · {entry.item.ownerModule}</small></div><kbd>→</kbd></button>)}{commandEntries.length===0&&<div className="command-empty">Không tìm thấy chức năng phù hợp với quyền hiện tại.</div>}</section></div>}
-    {logoutOpen&&<div className="modal-backdrop logout-backdrop" role="presentation" onMouseDown={()=>setLogoutOpen(false)}><section className="logout-modal" role="dialog" aria-modal="true" aria-labelledby="logout-title" onMouseDown={event=>event.stopPropagation()}><span className="logout-icon">↪</span><h2 id="logout-title">Đăng xuất khỏi Core Platform?</h2><p>Phiên làm việc hiện tại sẽ kết thúc. Bạn cần xác thực lại để tiếp tục truy cập.</p><div><button className="secondary-button" onClick={()=>setLogoutOpen(false)}>Ở lại</button><button className="danger-button" onClick={signOut}>Đăng xuất</button></div></section></div>}
+    {commandOpen&&<div className="modal-backdrop" role="presentation" onMouseDown={()=>setCommandOpen(false)}><section className="command-modal" role="dialog" aria-modal="true" aria-label="Tìm chức năng" onMouseDown={event=>event.stopPropagation()}><div className="command-input"><span><AppIcon name="search" size={17}/></span><input autoFocus value={commandQuery} onChange={event=>setCommandQuery(event.target.value)} placeholder="Tìm module hoặc chức năng..."/><kbd>ESC</kbd></div><p>{commandQuery?"Kết quả":"Gần đây và chức năng được cấp quyền"}</p>{commandEntries.slice(0,12).map(entry=><button key={entry.item.key} onClick={()=>openItem(entry.item)}><span><AppIcon name={entry.item.icon}/></span><div><strong>{entry.item.label}</strong><small>{entry.section.label} · {entry.item.ownerModule}</small></div><kbd>→</kbd></button>)}{commandEntries.length===0&&<div className="command-empty">Không tìm thấy chức năng phù hợp với quyền hiện tại.</div>}</section></div>}
+    {logoutOpen&&<div className="modal-backdrop logout-backdrop" role="presentation" onMouseDown={()=>setLogoutOpen(false)}><section className="logout-modal" role="dialog" aria-modal="true" aria-labelledby="logout-title" onMouseDown={event=>event.stopPropagation()}><span className="logout-icon"><AppIcon name="logout"/></span><h2 id="logout-title">Đăng xuất khỏi Core Platform?</h2><p>Phiên làm việc hiện tại sẽ kết thúc. Bạn cần xác thực lại để tiếp tục truy cập.</p><div><button className="secondary-button" onClick={()=>setLogoutOpen(false)}>Ở lại</button><button className="danger-button" onClick={signOut}>Đăng xuất</button></div></section></div>}
   </div>;
 }

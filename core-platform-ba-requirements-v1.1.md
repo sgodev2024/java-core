@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 |---|---|
 | Mã tài liệu | `CP-BA-001` |
-| Phiên bản | `1.1.3` |
+| Phiên bản | `1.1.4` |
 | Trạng thái | Approved |
 | Ngày lập | 2026-08-17 |
 | Ngày cập nhật | 2026-08-17 |
@@ -549,7 +549,7 @@ Phiên bản 1.1 làm rõ sản phẩm ở giai đoạn hiện tại là hệ th
 
 Tài khoản có quyền cao nhất được hiển thị bằng thuật ngữ **Quản trị viên hệ thống (System Administrator)**. Mã vai trò legacy `PLATFORM_ADMIN` được giữ trong backend để tương thích dữ liệu và API hiện tại; frontend không dùng tên này làm nhãn nghiệp vụ.
 
-### 24.2 Mười bốn quyết định frontend đã phê duyệt
+### 24.2 Mười lăm quyết định frontend đã phê duyệt
 
 | ID | Quyết định baseline | Hệ quả bắt buộc |
 |---|---|---|
@@ -567,6 +567,7 @@ Tài khoản có quyền cao nhất được hiển thị bằng thuật ngữ *
 | FE-BA-12 | Trải nghiệm phải theo quyền và đáp ứng thiết bị | Sidebar, tìm kiếm lệnh, yêu thích, trạng thái rỗng/lỗi/tải và mobile layout dùng cùng manifest đã được backend lọc. |
 | FE-BA-13 | Menu tác vụ cá nhân hiển thị theo capability tham gia xử lý nhiệm vụ được giao | Core không đăng ký sẵn `Công việc của tôi`. Module có hộp việc thật mới được đăng ký item `ASSIGNMENT`; item này luôn qua Permission Decision Point bằng policy đúng resource/action, kể cả System Administrator. Quyền wildcard quản trị không làm phát sinh menu tác vụ cá nhân. |
 | FE-BA-14 | Nghiệp vụ tách khỏi Production Core và tập trung trong section Nghiệp vụ | Section `business` là vùng mở rộng chuẩn, tương đương vai trò phân khu của `system-administration`. Module mẫu `approval-domain` chỉ được nạp ở profile `demo`/`test`, nằm trong group `Nghiệp vụ mẫu`; Production không đăng ký menu, API hoặc metadata của module này. |
+| FE-BA-15 | Giao diện ESG tối giản và mọi trạng thái vận hành phải có nguồn dữ liệu thật | Frontend dùng Next.js App Router chính thức, bảng màu xanh bền vững/trung tính, SVG icon theo ngữ nghĩa module; nút/số liệu không có API hoặc telemetry phải được nối thật, loại bỏ hoặc ghi vào gap backlog. Production không giữ dữ liệu seed minh họa. |
 
 ### 24.3 Kiến trúc thông tin được phê duyệt
 
@@ -654,6 +655,8 @@ Menu chỉ là cơ chế khám phá. Việc không hiển thị menu không thay
 | FE-FR-010 | Giao diện dùng thuật ngữ Quản trị viên hệ thống; `PLATFORM_ADMIN` chỉ là mã tương thích kỹ thuật. |
 | FE-FR-011 | Trang chủ không hiển thị dải thông tin tĩnh về tên môi trường, phiên bản Core, loại database và mô hình deployment; thông tin vận hành chi tiết phải đặt tại capability quản trị phù hợp khi có nhu cầu. |
 | FE-FR-012 | Production Core chỉ hiển thị section Nghiệp vụ và module thực được đóng gói/bật; `approval-domain` cùng API `/api/v1/approvals` chỉ tồn tại khi chạy profile `demo` hoặc `test`. |
+| FE-FR-013 | Login sử dụng thông điệp “Giải pháp tối ưu hóa vận hành doanh nghiệp”, chữ trắng trên nền ESG; mô tả là “Quản trị vận hành, tài nguyên, phân quyền từ một trung tâm duy nhất.” |
+| FE-FR-014 | Access/refresh token phải cùng phạm vi lưu trữ; frontend dùng refresh-token rotation của backend khi access token hết hạn và xóa toàn bộ token khi refresh/logout thất bại. |
 
 ### 24.6 Contract Navigation v1.1
 
@@ -705,6 +708,9 @@ Quy tắc:
 - [x] Trang chủ không còn dải thông tin tĩnh về môi trường, phiên bản Core, database và mô hình deployment.
 - [x] `approval-domain` được tách package/profile và không xuất hiện trong navigation/module/resource catalog của Production Core.
 - [x] Section Nghiệp vụ được giữ làm vùng mở rộng; trong demo, Đề nghị phê duyệt nằm dưới group Nghiệp vụ mẫu.
+- [x] Frontend dùng Next.js 16.3.1 App Router/standalone, bảng màu ESG và icon SVG theo module; không dùng vinext.
+- [x] Jobs/Outbox, bộ lọc module/resource/file, policy create và refresh-token được nối API thật; UI giả không có nguồn đã bị loại bỏ.
+- [x] Migration loại dữ liệu seed legacy khỏi Production và bộ đếm File/Service Account lấy từ database thật.
 - [ ] Kiểm thử nghiệm thu trên Production sau khi triển khai release v1.1.
 - [ ] Technical Lead và Security Approver ký xác nhận release.
 
@@ -719,11 +725,12 @@ Quy tắc:
 | FE-FR-004–005 | Access Management API + admin pages | Integration test và Production smoke test |
 | FE-FR-011 | Loại bỏ deployment environment summary strip khỏi Trang chủ | Frontend source guard test và Production visual smoke test |
 | FE-BA-14, FE-BR-014-01–06, FE-FR-012 | Profile-gated demo backend + business section/group + lazy frontend chunk + metadata cleanup | Profile test, navigation test, Production API/menu negative smoke test |
+| FE-BA-15, FE-FR-013–014 | ESG design tokens + semantic SVG registry + session rotation + V18 data hygiene + API gap matrix | Next build/test, dependency audit, backend integration và Production smoke test |
 
 ## 25. Phê duyệt thay đổi v1.1
 
 | Vai trò | Quyết định | Ngày |
 |---|---|---|
-| Product Owner / Project Sponsor | Approved FE-BA-01 đến FE-BA-14 | 2026-08-17 |
+| Product Owner / Project Sponsor | Approved FE-BA-01 đến FE-BA-15 | 2026-08-17 |
 | Technical Lead | Pending release verification | |
 | Security Approver | Pending release verification | |

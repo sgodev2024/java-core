@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -16,6 +17,7 @@ import org.springframework.stereotype.Component;
  * theo module_key, giữ nguyên status/metric runtime của deployment hiện tại.
  */
 @Component
+@Order(0)
 public class ModuleRegistry implements InitializingBean, ApplicationRunner {
   static final Logger log = LoggerFactory.getLogger(ModuleRegistry.class);
   private final List<ModuleContributor> contributors;

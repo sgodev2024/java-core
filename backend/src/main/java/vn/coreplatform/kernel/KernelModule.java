@@ -12,14 +12,14 @@ public class KernelModule implements ModuleContributor {
 
   @Override public List<NavigationWorkspaceDescriptor> navigationWorkspaces() {
     return List.of(
-        new NavigationWorkspaceDescriptor("business", "Nghiệp vụ", "navigation.section.business", "▦", "BUSINESS", 20, ""),
-        new NavigationWorkspaceDescriptor("system-administration", "Quản trị hệ thống", "navigation.section.systemAdministration", "⚙", "ADMIN", 90, "ROLE_PLATFORM_ADMIN"));
+        new NavigationWorkspaceDescriptor("business", "Nghiệp vụ", "navigation.section.business", "apps", "BUSINESS", 20, ""),
+        new NavigationWorkspaceDescriptor("system-administration", "Quản trị hệ thống", "navigation.section.systemAdministration", "settings", "ADMIN", 90, "ROLE_PLATFORM_ADMIN"));
   }
 
   @Override public List<NavigationItemDescriptor> navigationItems() {
     return List.of(
-        new NavigationItemDescriptor("core.home", "business", "", "Trang chủ", "navigation.home", "⌂", "home", "/home", 10, "", "", "", List.of("trang chủ", "tổng quan")),
-        new NavigationItemDescriptor("core.runtime", "system-administration", "", "Nền tảng", "navigation.runtime", "◫", "", "", 20, "ROLE_PLATFORM_ADMIN", "", "", List.of("runtime", "module")),
-        new NavigationItemDescriptor("core.modules", "system-administration", "core.runtime", "Quản lý module", "navigation.modules", "◫", "modules", "/administration/modules", 21, "ROLE_PLATFORM_ADMIN", "", "", List.of("module", "compatibility", "version")));
+        new NavigationItemDescriptor("core.home", "business", "", "Trang chủ", "navigation.home", "home", "home", "/home", 10, "", "", "", List.of("trang chủ", "tổng quan")),
+        new NavigationItemDescriptor("core.runtime", "system-administration", "", "Nền tảng", "navigation.runtime", "layers", "", "", 20, "ROLE_PLATFORM_ADMIN", "", "", List.of("runtime", "module")),
+        new NavigationItemDescriptor("core.modules", "system-administration", "core.runtime", "Quản lý module", "navigation.modules", "modules", "modules", "/administration/modules", 21, "ROLE_PLATFORM_ADMIN", "", "", List.of("module", "compatibility", "version")));
   }
 }

@@ -67,3 +67,18 @@ test("approval demo is isolated from the production application shell", async ()
   assert.match(shell, /dynamic\(\(\) => import\("\.\/demo\/approval-workspace"\)/);
   assert.match(demo, /api\/v1\/approvals/);
 });
+
+test("ESG login copy, semantic icons and real operations APIs are enforced", async () => {
+  const shell = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
+  assert.equal(packageJson.dependencies.next, "16.3.1");
+  assert.match(shell, /Giải pháp tối ưu hóa vận hành doanh nghiệp/);
+  assert.match(shell, /Quản trị vận hành, tài nguyên, phân quyền từ một trung tâm duy nhất/);
+  assert.match(styles, /\.auth-message h1\s*\{[^}]*color:\s*#fff/i);
+  assert.match(styles, /--navy-950:\s*#092e28/i);
+  assert.match(shell, /control-plane\/jobs/);
+  assert.match(shell, /control-plane\/outbox/);
+  assert.match(shell, /api\/v1\/auth\/refresh/);
+  assert.doesNotMatch(shell, /<strong>12<\/strong>|<strong>0\.8s<\/strong>/);
+});

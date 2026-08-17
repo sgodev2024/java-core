@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import vn.coreplatform.eventing.OutboxService;
+import vn.coreplatform.kernel.ResourceRegistry;
 import vn.coreplatform.permission.PermissionService;
 
 /**
@@ -19,8 +20,8 @@ import vn.coreplatform.permission.PermissionService;
  */
 @RestController @RequestMapping("/api/v1/files")
 public class FileController {
-  private final JdbcTemplate jdbc;private final PermissionService permissions;private final vn.coreplatform.audit.AuditService audits;private final OutboxService outbox;private final FileStorageService storage;
-  public FileController(JdbcTemplate jdbc,PermissionService permissions,vn.coreplatform.audit.AuditService audits,OutboxService outbox,FileStorageService storage){this.jdbc=jdbc;this.permissions=permissions;this.audits=audits;this.outbox=outbox;this.storage=storage;}
+  private final JdbcTemplate jdbc;private final PermissionService permissions;private final vn.coreplatform.audit.AuditService audits;private final OutboxService outbox;private final FileStorageService storage;private final ResourceRegistry resources;
+  public FileController(JdbcTemplate jdbc,PermissionService permissions,vn.coreplatform.audit.AuditService audits,OutboxService outbox,FileStorageService storage,ResourceRegistry resources){this.jdbc=jdbc;this.permissions=permissions;this.audits=audits;this.outbox=outbox;this.storage=storage;this.resources=resources;}
   public record FileItem(UUID id,String name,String mediaType,long sizeBytes,String classification,String status,String checksumSha256,Instant createdAt,Instant updatedAt){}
   public record PageResult(List<FileItem> items,int page,int size,long total){}
   public record SessionCreate(String name,String mediaType,@jakarta.validation.constraints.Pattern(regexp="INTERNAL|CONFIDENTIAL|RESTRICTED") String classification,String resourceType,String resourceId){}
@@ -64,6 +65,7 @@ public class FileController {
     var payload=new com.fasterxml.jackson.databind.ObjectMapper().createObjectNode()
       .put("fileId",item.id().toString()).put("name",item.name()).put("classification",item.classification());
     outbox.publish(tenantKey(a),"file.uploaded.v1","file",item.id().toString(),payload);
+    resources.adjustRecordCount("file-object",1);
     return item;
   }
 
@@ -92,6 +94,7 @@ public class FileController {
     var row=row(id,a);permissions.require(a,"FILE","DELETE",row.owner());
     if(row.legalHold())throw new ApiProblem(HttpStatus.CONFLICT,"FILE_LEGAL_HOLD","File đang bị giữ dữ liệu — không được xóa");
     jdbc.update("update files.file_object set status='DELETED',deleted_at=now(),updated_at=now() where id=?",id);
+    resources.adjustRecordCount("file-object",-1);
     if(row.key()!=null&&row.key().startsWith("objects/"))try{java.nio.file.Files.deleteIfExists(storage.resolve(row.key()));}catch(java.io.IOException e){throw new ApiProblem(HttpStatus.INTERNAL_SERVER_ERROR,"FILE_DELETE_FAILED","Không thể xóa object");}
     audits.record(tenantKey(a),permissions.account(a),a.getName(),"FILE_DELETED","FILE",id.toString(),"SUCCESS",null);
   }
