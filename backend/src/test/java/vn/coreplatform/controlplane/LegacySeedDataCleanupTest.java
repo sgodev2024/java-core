@@ -12,6 +12,7 @@ class LegacySeedDataCleanupTest extends AbstractApiTest {
     assertThat(jdbc.queryForObject("select count(*) from files.file_object where checksum_sha256 in (repeat('a',64),repeat('b',64),repeat('c',64),repeat('d',64))", Long.class)).isZero();
     assertThat(jdbc.queryForObject("select count(*) from identity.role_summary where user_count in (3,8,2,184) and policy_count in (12,7,5,9)", Long.class)).isZero();
     assertThat(jdbc.queryForObject("select count(*) from platform.module where metric in ('4 contracts','6 policies','12.4k records','12 pending','3 running','84.2 GB','24 definitions','Optional')", Long.class)).isZero();
+    assertThat(jdbc.queryForObject("select count(*) from platform.module where module_key in ('event-outbox','job-queue','file-management','local-identity') and status <> 'HEALTHY'", Long.class)).isZero();
   }
 
   @Test void coreResourceDescriptorsUseDatabaseCounts() {

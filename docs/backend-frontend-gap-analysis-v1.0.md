@@ -92,5 +92,5 @@ Các capability Giai đoạn 2/3 như OIDC/LDAP, BPMN, email, feature flags, rep
 - Nâng và pin Next.js `16.3.1`, đồng bộ `eslint-config-next`, audit dependency đạt 0 lỗ hổng đã biết tại thời điểm build.
 - Bỏ ba SVG mặc định của template Next.js không được tham chiếu.
 - Xóa archive `frontend-runtime.tgz` cũ, giải phóng 10.133.876 byte.
-- Migration V18 xóa chính xác file/outbox/job/activity/role/resource placeholder legacy và chuẩn hóa module metadata.
+- Migration V18 xóa chính xác file/outbox/job/activity/role/resource placeholder legacy; V19 chuẩn hóa trạng thái runtime của bốn module lõi từng bị gắn `DISABLED` bởi dữ liệu trình diễn.
 - Đổi `DemoAccountInitializer` thành `BootstrapAdminInitializer`; Production fail-fast nếu thiếu secret hoặc dùng mật khẩu demo.
