@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
+import { cp, mkdir } from "node:fs/promises";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
@@ -21,9 +22,12 @@ async function waitForServer(attempts = 60) {
 }
 
 test("control plane console server-renders the login shell", async () => {
-  const server = spawn(process.execPath, ["dist/standalone/server.js"], {
+  await mkdir(new URL("../.next/standalone/.next", import.meta.url), { recursive: true });
+  await cp(new URL("../.next/static", import.meta.url), new URL("../.next/standalone/.next/static", import.meta.url), { recursive: true });
+  await cp(new URL("../public", import.meta.url), new URL("../.next/standalone/public", import.meta.url), { recursive: true });
+  const server = spawn(process.execPath, [".next/standalone/server.js"], {
     cwd: ROOT,
-    env: { ...process.env, PORT: String(PORT), HOST: "127.0.0.1" },
+    env: { ...process.env, PORT: String(PORT), HOSTNAME: "127.0.0.1" },
     stdio: "ignore",
   });
   try {

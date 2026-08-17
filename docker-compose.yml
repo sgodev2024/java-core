@@ -23,6 +23,7 @@ services:
       SPRING_PROFILES_ACTIVE: demo
       CORE_BOOTSTRAP_ADMIN_PASSWORD: Core@2026
       CORE_BOOTSTRAP_MFA_CODE: "123456"
+      CORE_MFA_ENABLED: "true"
       CORE_MFA_ALLOW_BOOTSTRAP: "true"
       CORE_OUTBOX_ENABLED: "true"
       CORE_JOBS_ENABLED: "true"
@@ -35,6 +36,8 @@ services:
   frontend:
     build:
       context: ./frontend
+      args:
+        NEXT_PUBLIC_CORE_API_URL: ${NEXT_PUBLIC_CORE_API_URL:-http://localhost:8080}
     restart: unless-stopped
     ports: ["3000:3000"]
     depends_on:

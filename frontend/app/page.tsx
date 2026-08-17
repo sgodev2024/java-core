@@ -38,10 +38,16 @@ function LoginScreen({ onAuthenticated }: { onAuthenticated: (token: string, rem
     if (password.length < 8) return setError("Mật khẩu phải có ít nhất 8 ký tự.");
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/v1/auth/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password }) });
+      const response = await fetch(`${API_URL}/api/v1/auth/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password, remember }) });
       const body = await response.json();
       if (!response.ok) throw new Error(body.detail ?? "Không thể đăng nhập.");
-      setChallengeId(body.challengeId); setStep("mfa");
+      if (body.mfaRequired === false && body.session?.accessToken) {
+        onAuthenticated(body.session.accessToken, remember);
+      } else if (body.challengeId) {
+        setChallengeId(body.challengeId); setStep("mfa");
+      } else {
+        throw new Error("Phản hồi đăng nhập không hợp lệ.");
+      }
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Backend chưa sẵn sàng. Vui lòng thử lại."); }
     finally { setLoading(false); }
   };

@@ -72,7 +72,9 @@ public abstract class AbstractApiTest {
     var loginBody = mvc.perform(post("/api/v1/auth/login").contentType(APPLICATION_JSON)
             .content("{\"email\":\"%s\",\"password\":\"%s\"}".formatted(email, password)))
         .andExpect(status().isOk()).andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
-    var challengeId = json.readTree(loginBody).get("challengeId").asText();
+    var loginResponse = json.readTree(loginBody);
+    if (!loginResponse.path("mfaRequired").asBoolean(true)) return loginResponse.path("session").path("accessToken").asText();
+    var challengeId = loginResponse.get("challengeId").asText();
     var sessionBody = mvc.perform(post("/api/v1/auth/mfa").contentType(APPLICATION_JSON)
             .content("{\"challengeId\":\"%s\",\"code\":\"%s\",\"remember\":false}".formatted(challengeId, MFA_CODE)))
         .andExpect(status().isOk()).andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);

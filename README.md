@@ -10,6 +10,7 @@ Java Core Platform is a business-neutral modular application foundation for buil
 - `technical-delivery-pack-v1.0/` — implementation specification, backlog and quality gates
 - `core-platform-*-v1.0.md` — approved BA, runtime and database architecture documents
 - `docs/navigation-registry.md` — Workspace, dynamic menu manifest, security and extension contract
+- `docs/technical-change-register.md` — sổ thay đổi kỹ thuật và lịch sử tự động từ Git
 
 ## Local start
 
@@ -21,18 +22,17 @@ Ba service sẽ chạy: PostgreSQL 17 (`:5432`), backend (`:8080`), Control Plan
 
 Database dùng hai credential (E2): `core_admin` cho migration/DDL (`DB_MIGRATION_USER`) và `core_app` cho runtime (`DB_USER`, chỉ DML + chịu RLS theo tenant). Thay đổi roles/seed xong cần `docker compose down -v` để tạo lại volume.
 
-- UI: `http://localhost:3000` — đăng nhập `admin@core.local` / `Core@2026`, mã MFA `123456` (chỉ dùng cho môi trường demo local).
+- UI: `http://localhost:3000` — đăng nhập `admin@core.local` / `Core@2026`, mã MFA `123456` khi `CORE_MFA_ENABLED=true` (chỉ dùng cho môi trường demo local).
 - Backend readiness: `http://localhost:8080/actuator/health/readiness`
 - Backend OpenAPI: `http://localhost:8080/swagger-ui`
 
-Lưu ý build frontend: image frontend chỉ chứa bản build (`dist/`), nên phải build trước với API URL đúng môi trường rồi mới `docker compose build frontend`:
+Frontend dùng Next.js standalone chuẩn. Có thể build trực tiếp hoặc truyền API URL khi build Docker:
 
 ```text
 cd frontend
 NEXT_PUBLIC_CORE_API_URL=http://localhost:8080 npm run build
+docker build --build-arg NEXT_PUBLIC_CORE_API_URL=http://localhost:8080 -t core-platform-frontend ./frontend
 ```
-
-Trên Windows, hãy chạy frontend qua Docker Compose thay vì `node dist/standalone/server.js` trực tiếp: `StaticFileCache` của vinext tạo cache key bằng path separator của OS (`\`), khiến mọi request `/assets/*` trả 404 khi chạy server standalone trên Windows. Trong container Linux asset phục vụ bình thường.
 
 ## Build and test
 

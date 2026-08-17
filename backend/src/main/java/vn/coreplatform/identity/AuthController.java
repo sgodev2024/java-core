@@ -11,16 +11,17 @@ import vn.coreplatform.security.SecurityConfig; import vn.coreplatform.shared.Ap
 @RestController @RequestMapping("/api/v1/auth")
 public class AuthController {
   private final JdbcTemplate jdbc; private final PasswordEncoder encoder; private final vn.coreplatform.audit.AuditService audits; private final SecureRandom random=new SecureRandom();
-  private final String bootstrapMfaCode; private final boolean allowBootstrapMfa; private final boolean requireAdminMfa;
+  private final String bootstrapMfaCode; private final boolean mfaEnabled; private final boolean allowBootstrapMfa; private final boolean requireAdminMfa;
   static final int MAX_FAILED_ATTEMPTS = 5;
   public AuthController(JdbcTemplate jdbc,PasswordEncoder encoder,vn.coreplatform.audit.AuditService audits,
                         @Value("${core.bootstrap-mfa-code:}") String bootstrapMfaCode,
+                        @Value("${core.mfa.enabled:true}") boolean mfaEnabled,
                         @Value("${core.mfa.allow-bootstrap:false}") boolean allowBootstrapMfa,
                         @Value("${core.mfa.require-admin:true}") boolean requireAdminMfa){
-    this.jdbc=jdbc;this.encoder=encoder;this.audits=audits;this.bootstrapMfaCode=bootstrapMfaCode;this.allowBootstrapMfa=allowBootstrapMfa;this.requireAdminMfa=requireAdminMfa;
+    this.jdbc=jdbc;this.encoder=encoder;this.audits=audits;this.bootstrapMfaCode=bootstrapMfaCode;this.mfaEnabled=mfaEnabled;this.allowBootstrapMfa=allowBootstrapMfa;this.requireAdminMfa=requireAdminMfa;
   }
-  record LoginRequest(@Email @NotBlank String email,@NotBlank @Size(min=8,max=128) String password){}
-  record LoginResponse(String challengeId,boolean mfaRequired,String maskedDestination){}
+  record LoginRequest(@Email @NotBlank String email,@NotBlank @Size(min=8,max=128) String password,boolean remember){}
+  record LoginResponse(String challengeId,boolean mfaRequired,String maskedDestination,SessionResponse session){}
   record MfaRequest(@NotBlank String challengeId,@Pattern(regexp="[A-Za-z0-9]{6,12}") String code,boolean remember){}
   record SessionResponse(String accessToken,String refreshToken,Instant expiresAt,UserResponse user){}
   record UserResponse(UUID id,String email,String displayName,String role){}
@@ -32,8 +33,9 @@ public class AuthController {
 
   @PostMapping("/login")
   LoginResponse login(@Valid @RequestBody LoginRequest input){
-    var rows=jdbc.query("select id,password_hash,password_algo,enabled,account_type,role,failed_attempts,locked_until from identity.account where lower(email)=lower(?)",
+    var rows=jdbc.query("select id,email,display_name,password_hash,password_algo,enabled,account_type,role,failed_attempts,locked_until from identity.account where lower(email)=lower(?)",
       (rs,n)->{var row=new java.util.HashMap<String,Object>();row.put("id",rs.getObject("id",UUID.class));row.put("hash",rs.getString("password_hash"));
+        row.put("email",rs.getString("email"));row.put("displayName",rs.getString("display_name"));
         row.put("algo",rs.getString("password_algo"));row.put("enabled",rs.getBoolean("enabled"));row.put("type",rs.getString("account_type"));
         row.put("role",rs.getString("role"));row.put("failed",rs.getInt("failed_attempts"));row.put("lockedUntil",rs.getTimestamp("locked_until"));return row;},input.email());
     if(!rows.isEmpty()&&"SERVICE".equals(rows.getFirst().get("type"))){
@@ -53,10 +55,15 @@ public class AuthController {
     // E3-S02: hash cũ (bcrypt) được nâng cấp lên Argon2id ngay khi đăng nhập thành công
     if(!"{argon2}".regionMatches(true,0,(String)account.get("hash"),0,7))
       jdbc.update("update identity.account set password_hash=?,password_algo='ARGON2ID',password_changed_at=now() where id=?",encoder.encode(input.password()),id);
+    if(!mfaEnabled){
+      var user=new UserResponse(id,(String)account.get("email"),(String)account.get("displayName"),(String)account.get("role"));
+      audit(id,user.email(),"AUTH_MFA_SKIPPED_BY_CONFIGURATION","SUCCESS");
+      return new LoginResponse(null,false,null,issueSession(user,input.remember(),null));
+    }
     if(requireAdminMfa&&"PLATFORM_ADMIN".equals(account.get("role"))&&adminEnrollmentMissing(id)&&!allowBootstrapMfa)
       throw new ApiProblem(HttpStatus.FORBIDDEN,"MFA_ENROLLMENT_REQUIRED","Administrator phải kích hoạt MFA trước khi đăng nhập; liên hệ quản trị để cấp recovery");
     var challenge=UUID.randomUUID(); jdbc.update("insert into identity.mfa_challenge(id,account_id,expires_at) values(?,?,now()+interval '5 minutes')",challenge,id);
-    audit(id,input.email(),"AUTH_LOGIN_CHALLENGE","SUCCESS"); return new LoginResponse(challenge.toString(),true,"Authenticator app");
+    audit(id,input.email(),"AUTH_LOGIN_CHALLENGE","SUCCESS"); return new LoginResponse(challenge.toString(),true,"Authenticator app",null);
   }
 
   @PostMapping("/mfa")
