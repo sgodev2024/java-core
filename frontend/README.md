@@ -1,6 +1,6 @@
 # Core Platform Control Plane — Next.js
 
-Frontend quản trị và Workspace nghiệp vụ của Java Core Platform. Runtime sử dụng Next.js App Router chính thức; không dùng vinext, Vite, Cloudflare Worker hoặc Sites hosting.
+Frontend hợp nhất nghiệp vụ và quản trị của Java Core Platform. Runtime sử dụng Next.js App Router chính thức; không dùng vinext, Vite, Cloudflare Worker hoặc Sites hosting.
 
 ## Yêu cầu
 
@@ -43,7 +43,11 @@ Image cuối chạy non-root bằng `node server.js`, lắng nghe cổng `3000` 
 
 ## Navigation contract
 
-Frontend gọi `GET /api/v1/navigation/me` sau khi đăng nhập. Workspace, sidebar, favorites, recent items và Command Palette đều dựng từ manifest backend đã lọc quyền; không thêm menu cố định trong UI shell.
+Frontend gọi `GET /api/v1/navigation/me` sau khi đăng nhập. Sidebar, section, favorites, recent items và Command Palette đều dựng từ `sections[]` đã được backend lọc quyền; không có Workspace switcher và không thêm menu module cố định trong UI shell.
+
+Route chuẩn gồm `/home`, `/business/...` và `/administration/...`. Menu tác vụ cá nhân phải dùng visibility mode `ASSIGNMENT`; quyền System Administrator không tự làm menu này xuất hiện.
+
+Các trang Người dùng, Cơ cấu tổ chức và Vai trò & phân quyền gọi trực tiếp Access Management API. Giao diện dedicated deployment không hiển thị tenant/customer switcher.
 
 ## Sổ thay đổi kỹ thuật
 

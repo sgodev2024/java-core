@@ -2,7 +2,13 @@ package vn.coreplatform.permission;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import vn.coreplatform.AbstractApiTest;
+
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
@@ -12,6 +18,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class PermissionTest extends AbstractApiTest {
   String admin;
   String resourceKey;
+  @Autowired PermissionService permissionService;
 
   @BeforeEach
   void seed() throws Exception {
@@ -74,6 +81,31 @@ class PermissionTest extends AbstractApiTest {
     createUserWithPolicies("rev-" + suffix() + "@test.local", null, null);
     var after = jdbc.queryForObject("select pr.revision from identity.permission_revision pr join platform.tenant t on t.id=pr.tenant_id where t.tenant_key='default'", Long.class);
     assertThat(after).isGreaterThan(before);
+  }
+
+  @Test
+  void explicitAssignmentScopeDoesNotAcceptPlatformAdminWildcard() {
+    var tenantId = jdbc.queryForObject("select id from platform.tenant where tenant_key='default'", UUID.class);
+    var accountId = jdbc.queryForObject("select id from identity.account where tenant_id=? and email='admin@core.local'", UUID.class, tenantId);
+    var authentication = new UsernamePasswordAuthenticationToken("admin@core.local", "", List.of());
+    authentication.setDetails(Map.of("tenantId", tenantId, "accountId", accountId));
+
+    assertThat(permissionService.scope(authentication, "WORK_ITEM", "READ_ASSIGNED").allowed()).isTrue();
+    assertThat(permissionService.scopeExplicit(authentication, "WORK_ITEM", "READ_ASSIGNED").allowed()).isFalse();
+
+    var policyId = UUID.randomUUID();
+    try {
+      jdbc.update("insert into identity.policy(id,tenant_id,code,resource_type,action,effect,condition_json) values(?,?,?,'WORK_ITEM','READ_ASSIGNED','ALLOW','{}')",
+          policyId, tenantId, "assigned-work-" + suffix());
+      jdbc.update("insert into identity.role_policy(tenant_id,role_id,policy_id) select ?,id,? from identity.role where tenant_id=? and code='platform-admin'",
+          tenantId, policyId, tenantId);
+      jdbc.update("update identity.permission_revision set revision=revision+1 where tenant_id=?", tenantId);
+      assertThat(permissionService.scopeExplicit(authentication, "WORK_ITEM", "READ_ASSIGNED").allowed()).isTrue();
+    } finally {
+      jdbc.update("delete from identity.role_policy where tenant_id=? and policy_id=?", tenantId, policyId);
+      jdbc.update("delete from identity.policy where tenant_id=? and id=?", tenantId, policyId);
+      jdbc.update("update identity.permission_revision set revision=revision+1 where tenant_id=?", tenantId);
+    }
   }
 
   private String createUserWithPolicies(String email, String allowCondition, String deniedAction) throws Exception {

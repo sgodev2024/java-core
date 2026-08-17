@@ -9,8 +9,9 @@ import org.springframework.beans.factory.InitializingBean;
 import org.springframework.stereotype.Component;
 
 /**
- * Registry code-first cho navigation manifest. Startup fail nếu workspace/item trùng,
- * namespace sai, parent không tồn tại/khác workspace, route không an toàn hoặc parent cycle.
+ * Registry code-first cho navigation manifest. Workspace descriptor v1.0 được dùng như
+ * section adapter; startup fail nếu section/item trùng, namespace sai, parent không hợp lệ,
+ * route không an toàn hoặc cây điều hướng sâu quá Section -> Group -> Page.
  */
 @Component
 public class NavigationRegistry implements InitializingBean {
@@ -67,6 +68,8 @@ public class NavigationRegistry implements InitializingBean {
         if (!parent.descriptor().group()) throw new IllegalStateException("Navigation parent phải là GROUP: " + item.parentKey());
         if (!parent.descriptor().workspaceKey().equals(item.workspaceKey()))
           throw new IllegalStateException("Navigation parent khác workspace: " + item.key());
+        if (item.group() || !parent.descriptor().parentKey().isBlank())
+          throw new IllegalStateException("Navigation tối đa Section -> Group -> Page: " + item.key());
       }
       detectParentCycle(item, itemByKey);
     }
@@ -100,11 +103,15 @@ public class NavigationRegistry implements InitializingBean {
       throw new IllegalStateException("Navigation authority không hợp lệ: " + item.key());
     if (item.permissionResource().isBlank() != item.permissionAction().isBlank())
       throw new IllegalStateException("Navigation permission phải có đủ resource/action: " + item.key());
+    if (!Set.of("ACCESS", "ASSIGNMENT").contains(item.visibilityMode()))
+      throw new IllegalStateException("Navigation visibilityMode không hợp lệ: " + item.key());
+    if (item.assignmentScoped() && item.permissionResource().isBlank())
+      throw new IllegalStateException("Navigation ASSIGNMENT phải có permission resource/action: " + item.key());
     if (!item.group()) {
       if (!NavigationItemDescriptor.VIEW_PATTERN.matcher(item.viewKey()).matches())
         throw new IllegalStateException("Navigation viewKey không hợp lệ: " + item.key());
-      if (!item.route().matches("/#/[a-z0-9][a-z0-9/-]{1,159}"))
-        throw new IllegalStateException("Navigation route phải là hash route nội bộ: " + item.key());
+      if (!item.route().matches("/[a-z0-9][a-z0-9/-]{1,159}"))
+        throw new IllegalStateException("Navigation route phải là application route nội bộ: " + item.key());
     }
   }
 

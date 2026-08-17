@@ -22,7 +22,7 @@ public class PermissionService {
   private final JdbcTemplate jdbc; private final vn.coreplatform.audit.AuditService audits; public PermissionService(JdbcTemplate jdbc,vn.coreplatform.audit.AuditService audits){this.jdbc=jdbc;this.audits=audits;}
   public record Decision(boolean allowed,String reason,boolean ownerOnly){}
 
-  private record CacheKey(long revision,UUID tenant,UUID account,String resource,String action){}
+  private record CacheKey(long revision,UUID tenant,UUID account,String resource,String action,boolean exact){}
   private record PolicyRow(String effect,String conditionJson){}
   private final Map<CacheKey, List<PolicyRow>> policyCache = new ConcurrentHashMap<>();
 
@@ -45,9 +45,23 @@ public class PermissionService {
     }catch(Exception e){return evaluationDenied(e);}
   }
 
+  /**
+   * Capability gate cho task/assignment. Khác scope thông thường, wildcard * / * không
+   * được tính là nhiệm vụ được giao; tài khoản phải có policy đúng resource/action.
+   */
+  public Decision scopeExplicit(Authentication auth,String resource,String action){
+    try{
+      var tenant=tenant(auth);var account=account(auth);
+      var rows=policiesExact(tenant,account,resource,action);
+      boolean allow=false,ownerOnly=false;
+      for(var p:rows){boolean owner=read(p.conditionJson()).path("ownerOnly").asBoolean(false);if("DENY".equals(p.effect())&&!owner)return new Decision(false,"EXPLICIT_DENY",false);if("ALLOW".equals(p.effect())){allow=true;ownerOnly|=owner;}}
+      return new Decision(allow,allow?"EXPLICIT_POLICY_ALLOW":"NO_EXPLICIT_POLICY",ownerOnly);
+    }catch(Exception e){return evaluationDenied(e);}
+  }
+
   private List<PolicyRow> policies(UUID tenant,UUID account,String resource,String action){
     var revision=revision(tenant);
-    var key=new CacheKey(revision,tenant,account,resource,action);
+    var key=new CacheKey(revision,tenant,account,resource,action,false);
     var cached=policyCache.get(key);
     if(cached!=null)return cached;
     var rows=jdbc.query("""
@@ -56,6 +70,22 @@ public class PermissionService {
         join identity.policy p on p.tenant_id=rp.tenant_id and p.id=rp.policy_id
         where ar.tenant_id=? and ar.account_id=? and p.enabled=true
           and (p.resource_type='*' or p.resource_type=?) and (p.action='*' or p.action=?)
+        """,(r,n)->new PolicyRow(r.getString(1),r.getString(2)),tenant,account,resource,action);
+    policyCache.put(key,rows);
+    return rows;
+  }
+
+  private List<PolicyRow> policiesExact(UUID tenant,UUID account,String resource,String action){
+    var revision=revision(tenant);
+    var key=new CacheKey(revision,tenant,account,resource,action,true);
+    var cached=policyCache.get(key);
+    if(cached!=null)return cached;
+    var rows=jdbc.query("""
+        select p.effect,p.condition_json from identity.account_role ar
+        join identity.role_policy rp on rp.tenant_id=ar.tenant_id and rp.role_id=ar.role_id
+        join identity.policy p on p.tenant_id=rp.tenant_id and p.id=rp.policy_id
+        where ar.tenant_id=? and ar.account_id=? and p.enabled=true
+          and p.resource_type=? and p.action=?
         """,(r,n)->new PolicyRow(r.getString(1),r.getString(2)),tenant,account,resource,action);
     policyCache.put(key,rows);
     return rows;

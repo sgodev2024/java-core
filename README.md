@@ -8,8 +8,9 @@ Java Core Platform is a business-neutral modular application foundation for buil
 - `frontend/` — Core Platform Control Plane UI
 - `deploy/ubuntu20/` — systemd, Nginx, environment and deployment/rollback assets
 - `technical-delivery-pack-v1.0/` — implementation specification, backlog and quality gates
-- `core-platform-*-v1.0.md` — approved BA, runtime and database architecture documents
-- `docs/navigation-registry.md` — Workspace, dynamic menu manifest, security and extension contract
+- `core-platform-ba-requirements-v1.1.md` — approved BA and unified frontend baseline (FE-BA-01..13)
+- `core-platform-runtime-architecture-v1.0.md`, `core-platform-database-architecture-v1.0.md` — approved runtime and database architecture
+- `docs/navigation-registry.md` — unified section/menu manifest, assignment visibility, security and extension contract
 - `docs/technical-change-register.md` — sổ thay đổi kỹ thuật và lịch sử tự động từ Git
 
 ## Local start

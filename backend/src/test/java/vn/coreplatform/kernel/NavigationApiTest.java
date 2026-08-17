@@ -12,11 +12,13 @@ import org.junit.jupiter.api.Test;
 import vn.coreplatform.AbstractApiTest;
 
 class NavigationApiTest extends AbstractApiTest {
-  @Test void platformAdminReceivesSeparatedBusinessAndCoreWorkspaces() throws Exception {
+  @Test void platformAdminReceivesUnifiedBusinessAndAdministrationSections() throws Exception {
     var body = navigation(adminToken());
-    assertThat(keys(body.path("workspaces"))).containsExactly("business", "core-admin");
-    assertThat(itemKeys(body, "core-admin")).contains("core.admin-overview", "core.modules", "core.resources", "core.access", "core.activity", "core.files", "core.settings");
-    assertThat(itemKeys(body, "business")).contains("core.business-home", "module.approval-domain.approvals");
+    assertThat(keys(body.path("sections"))).containsExactly("business", "system-administration");
+    assertThat(itemKeys(body, "system-administration")).contains("core.modules", "core.resources", "core.users",
+        "core.organizations", "core.access", "core.activity", "core.files", "core.settings");
+    assertThat(itemKeys(body, "business")).contains("core.home", "module.approval-domain.approvals");
+    assertThat(body.has("workspaces")).isFalse();
   }
 
   @Test void applicationUserOnlyReceivesAuthorizedBusinessItems() throws Exception {
@@ -24,8 +26,8 @@ class NavigationApiTest extends AbstractApiTest {
     seedDefaultTenantAccount(email, "ApplicationPass@2026");
     var token = login(email, "ApplicationPass@2026");
     var before = navigation(token);
-    assertThat(keys(before.path("workspaces"))).containsExactly("business");
-    assertThat(itemKeys(before, "business")).containsExactly("core.business-home");
+    assertThat(keys(before.path("sections"))).containsExactly("business");
+    assertThat(itemKeys(before, "business")).containsExactly("core.home");
 
     var tenantId = jdbc.queryForObject("select id from platform.tenant where tenant_key='default'", UUID.class);
     var policyId = UUID.randomUUID();
@@ -36,7 +38,7 @@ class NavigationApiTest extends AbstractApiTest {
     jdbc.update("update identity.permission_revision set revision=revision+1 where tenant_id=?", tenantId);
     try {
       var after = navigation(token);
-      assertThat(itemKeys(after, "business")).contains("core.business-home", "module.approval-domain.approvals");
+      assertThat(itemKeys(after, "business")).contains("core.home", "module.approval-domain.approvals");
     } finally {
       jdbc.update("delete from identity.role_policy where tenant_id=? and policy_id=?", tenantId, policyId);
       jdbc.update("delete from identity.policy where tenant_id=? and id=?", tenantId, policyId);
@@ -47,7 +49,7 @@ class NavigationApiTest extends AbstractApiTest {
   @Test void disabledModuleRemovesItsNavigationContribution() throws Exception {
     jdbc.update("update platform.module set status='DISABLED' where module_key='approval-domain'");
     try {
-      assertThat(itemKeys(navigation(adminToken()), "business")).containsExactly("core.business-home");
+      assertThat(itemKeys(navigation(adminToken()), "business")).containsExactly("core.home");
     } finally {
       jdbc.update("update platform.module set status='HEALTHY' where module_key='approval-domain'");
     }
@@ -56,12 +58,13 @@ class NavigationApiTest extends AbstractApiTest {
   @Test void preferencesRoundTripAndDiscardUnauthorizedKeys() throws Exception {
     var token = adminToken();
     var response = mvc.perform(put("/api/v1/navigation/me/preferences").with(bearer(token)).contentType(APPLICATION_JSON)
-            .content("{\"favoriteKeys\":[\"core.modules\",\"module.unknown.page\"],\"recentKeys\":[\"core.files\",\"core.modules\"],\"lastWorkspaceKey\":\"core-admin\"}"))
+            .content("{\"favoriteKeys\":[\"core.modules\",\"module.unknown.page\"],\"recentKeys\":[\"core.files\",\"core.modules\"]}"))
         .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
     var body = json.readTree(response);
     assertThat(texts(body.path("favoriteKeys"))).containsExactly("core.modules");
     assertThat(texts(body.path("recentKeys"))).containsExactly("core.files", "core.modules");
-    assertThat(body.path("currentWorkspaceKey").asText()).isEqualTo("core-admin");
+    assertThat(body.has("currentWorkspaceKey")).isFalse();
+    assertThat(body.has("defaultWorkspaceKey")).isFalse();
   }
 
   private JsonNode navigation(String token) throws Exception {
@@ -71,8 +74,8 @@ class NavigationApiTest extends AbstractApiTest {
   }
   private List<String> keys(JsonNode nodes) { var result=new ArrayList<String>();nodes.forEach(n->result.add(n.path("key").asText()));return result; }
   private List<String> texts(JsonNode nodes) { var result=new ArrayList<String>();nodes.forEach(n->result.add(n.asText()));return result; }
-  private List<String> itemKeys(JsonNode body,String workspace) {
-    for (var node : body.path("workspaces")) if (workspace.equals(node.path("key").asText()))
+  private List<String> itemKeys(JsonNode body,String section) {
+    for (var node : body.path("sections")) if (section.equals(node.path("key").asText()))
       return keys(node.path("items"));
     return List.of();
   }

@@ -22,7 +22,7 @@
 
 ## 3. Tài liệu nguồn được phê duyệt
 
-- `../core-platform-ba-requirements-v1.0.md` — `CP-BA-001`.
+- `../core-platform-ba-requirements-v1.1.md` — `CP-BA-001`, baseline frontend hợp nhất FE-BA-01..13.
 - `../core-platform-runtime-architecture-v1.0.md` — `CP-ARCH-002`.
 - `../core-platform-database-architecture-v1.0.md` — `CP-DATA-003`.
 

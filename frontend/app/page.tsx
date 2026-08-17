@@ -2,13 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-type View = "business-home" | "approvals" | "overview" | "modules" | "resources" | "access" | "activity" | "files" | "settings";
+type View = "home" | "approvals" | "modules" | "resources" | "users" | "organizations" | "access" | "activity" | "files" | "settings";
 type AuthStep = "login" | "mfa";
 const API_URL = process.env.NEXT_PUBLIC_CORE_API_URL ?? "https://api.corejava.sgodata.com";
 type UserInfo = { id: string; email: string; displayName: string; role: string };
 type NavigationItem = { key:string; parentKey:string; ownerModule:string; label:string; labelKey:string; icon:string; type:"GROUP"|"PAGE"; viewKey:string; route:string; sortOrder:number; keywords:string[] };
-type NavigationWorkspace = { key:string; label:string; labelKey:string; icon:string; category:"BUSINESS"|"ADMIN"; sortOrder:number; items:NavigationItem[] };
-type NavigationModel = { revision:string; defaultWorkspaceKey:string; currentWorkspaceKey:string; workspaces:NavigationWorkspace[]; favoriteKeys:string[]; recentKeys:string[] };
+type NavigationSection = { key:string; label:string; labelKey:string; icon:string; sortOrder:number; items:NavigationItem[] };
+type NavigationModel = { revision:string; sections:NavigationSection[]; favoriteKeys:string[]; recentKeys:string[] };
 type ModuleItem = { id: string; name: string; moduleKey: string; version: string; status: string; description: string; metric: string };
 type ResourceItem = { id: string; name: string; storageMode: string; ownerModule: string; records: number; schemaVersion: string; updatedAt: string };
 type ActivityItem = { id: string; kind: string; name: string; metadata: string; status: string; occurredAt: string };
@@ -16,10 +16,31 @@ type RoleItem = { id: string; name: string; users: number; policies: number; sco
 type FileItem = { id: string; name: string; mediaType: string; sizeBytes: number; classification: string; status: string; updatedAt: string };
 type AuditItem = { id: string; actorEmail: string; action: string; resourceType?: string; resourceId?: string; result: string; correlationId: string; occurredAt: string };
 type DynamicDefinition = { id:string; resourceKey:string; name:string; version:number; schema:{fields:Array<{key:string;type:string;required?:boolean}>}; status:string; updatedAt:string };
+type AccessUser = { id:string; email:string; displayName:string; enabled:boolean; roles:string[]; createdAt:string };
+type AccessRole = { id:string; code:string; name:string; systemRole:boolean };
+type AccessPolicy = { id:string; code:string; resourceType:string; action:string; effect:string; condition:string; version:number; enabled:boolean };
+type Organization = { id:string; code:string; name:string; parentCode?:string; status:string; createdAt:string };
 type BootstrapData = {
   summary: { resources: number; modules: number; pendingOutbox: number; runningJobs: number; files: number; storageGb: number; coreVersion: string; environment: string };
   modules: ModuleItem[]; resources: ResourceItem[]; activities: ActivityItem[]; roles: RoleItem[]; files: FileItem[]; audit: AuditItem[]; settings: Record<string,string>;
 };
+
+function storedToken() {
+  return typeof window === "undefined" ? "" : window.localStorage.getItem("core-access-token") || window.sessionStorage.getItem("core-access-token") || "";
+}
+
+async function apiRequest<T>(path:string, init:RequestInit = {}):Promise<T> {
+  const response = await fetch(`${API_URL}${path}`, {
+    ...init,
+    headers: { Authorization:`Bearer ${storedToken()}`, ...(init.body ? {"Content-Type":"application/json"} : {}), ...init.headers }
+  });
+  if (!response.ok) {
+    const problem = await response.json().catch(() => ({}));
+    throw new Error(problem.detail || "Thao tác không thành công.");
+  }
+  if (response.status === 204) return undefined as T;
+  return response.json() as Promise<T>;
+}
 
 function LoginScreen({ onAuthenticated }: { onAuthenticated: (token: string, remember: boolean) => void }) {
   const [step, setStep] = useState<AuthStep>("login");
@@ -79,7 +100,7 @@ function LoginScreen({ onAuthenticated }: { onAuthenticated: (token: string, rem
           <form onSubmit={submitLogin} noValidate>
             <label>Email công việc<input autoFocus type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@company.vn" /></label>
             <label>Mật khẩu<div className="password-field"><input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Nhập mật khẩu" /><span>●●●</span></div></label>
-            <div className="auth-options"><label className="check-label"><input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} /> Ghi nhớ đăng nhập</label><button type="button" className="auth-link" onClick={() => setError("Vui lòng liên hệ Platform Administrator để đặt lại mật khẩu.")}>Quên mật khẩu?</button></div>
+            <div className="auth-options"><label className="check-label"><input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} /> Ghi nhớ đăng nhập</label><button type="button" className="auth-link" onClick={() => setError("Vui lòng liên hệ Quản trị viên hệ thống để đặt lại mật khẩu.")}>Quên mật khẩu?</button></div>
             {error && <p className="auth-error" role="alert">{error}</p>}
             <button className="auth-submit" disabled={loading}>{loading ? "Đang xác thực..." : "Tiếp tục"}<span>→</span></button>
           </form>
@@ -123,7 +144,7 @@ function Overview({ onNavigate, data, displayName }: { onNavigate: (view: View) 
     <>
       <PageTitle
         eyebrow="Core Control Plane"
-        title={`Xin chào, ${displayName || "Platform Administrator"}`}
+        title={`Xin chào, ${displayName || "Quản trị viên hệ thống"}`}
         description={`Hệ thống đang hoạt động. Có ${summary.pendingOutbox} sự kiện outbox và ${summary.runningJobs} background job đang xử lý.`}
         action={<button className="primary-button" onClick={() => onNavigate("resources")}><span>＋</span> Tạo resource</button>}
       />
@@ -132,7 +153,7 @@ function Overview({ onNavigate, data, displayName }: { onNavigate: (view: View) 
         <div className="health-mark"><span>✓</span></div>
         <div className="health-copy">
           <div className="health-title"><strong>Tất cả dịch vụ cốt lõi đang hoạt động</strong><span className="live-pill"><StatusDot /> Live</span></div>
-          <p>Database 18 ms · Object storage 42 ms · Audit checkpoint 4 phút trước</p>
+          <p>Dữ liệu tổng hợp trực tiếp từ backend · Các trạng thái lỗi sẽ được hiển thị tại khu vực vận hành</p>
         </div>
         <button className="text-button" onClick={() => onNavigate("activity")}>Xem chi tiết <span>→</span></button>
       </section>
@@ -151,8 +172,8 @@ function Overview({ onNavigate, data, displayName }: { onNavigate: (view: View) 
           <strong className="metric-value">{summary.pendingOutbox}</strong><span className="metric-trend warning">Pending</span><small>outbox chờ xử lý</small>
         </article>
         <article className="metric-card">
-          <div className="metric-icon teal">◷</div><span className="metric-label">API latency p95</span>
-          <strong className="metric-value">184 <em>ms</em></strong><span className="metric-trend positive">↓ 12 ms</span><small>mục tiêu ≤ 300 ms</small>
+          <div className="metric-icon teal">◷</div><span className="metric-label">Background jobs</span>
+          <strong className="metric-value">{summary.runningJobs}</strong><span className="metric-trend positive">Live</span><small>tác vụ đang xử lý</small>
         </article>
       </section>
 
@@ -175,16 +196,15 @@ function Overview({ onNavigate, data, displayName }: { onNavigate: (view: View) 
           <div className="panel-header"><div><h2>Truy cập nhanh</h2><p>Các tác vụ thường dùng</p></div></div>
           <button onClick={() => onNavigate("modules")}><span className="quick-icon">◫</span><div><strong>Quản lý modules</strong><small>Bật, tắt và kiểm tra phiên bản</small></div><b>→</b></button>
           <button onClick={() => onNavigate("access")}><span className="quick-icon">◎</span><div><strong>Phân quyền</strong><small>Vai trò, policy và phạm vi</small></div><b>→</b></button>
-          <button onClick={() => onNavigate("files")}><span className="quick-icon">▱</span><div><strong>Kho tệp</strong><small>24.903 tệp · 84,2 GB</small></div><b>→</b></button>
+          <button onClick={() => onNavigate("files")}><span className="quick-icon">▱</span><div><strong>Kho tệp</strong><small>{summary.files.toLocaleString("vi-VN")} tệp · {summary.storageGb.toFixed(2)} GB</small></div><b>→</b></button>
         </aside>
       </div>
 
       <section className="panel environment-panel">
-        <div><span className="environment-label">Môi trường</span><strong>core-production-vn</strong><small>Standard tier · Ho Chi Minh City</small></div>
-        <div><span>Phiên bản Core</span><strong>1.0.0-rc.4</strong></div>
-        <div><span>Database</span><strong><StatusDot /> PostgreSQL 17</strong></div>
-        <div><span>Lần triển khai gần nhất</span><strong>14/08/2026 · 21:30</strong></div>
-        <button className="ghost-button">Thông tin hệ thống</button>
+        <div><span className="environment-label">Môi trường</span><strong>{summary.environment}</strong><small>Dedicated deployment</small></div>
+        <div><span>Phiên bản Core</span><strong>{summary.coreVersion}</strong></div>
+        <div><span>Database</span><strong><StatusDot /> PostgreSQL</strong></div>
+        <div><span>Mô hình vận hành</span><strong>Một khách hàng / một deployment</strong></div>
       </section>
     </>
   );
@@ -249,15 +269,44 @@ function Resources({ items, onChanged }: { items: ResourceItem[]; onChanged: () 
   );
 }
 
-function Access({ items, onCreate }: { items: RoleItem[]; onCreate: () => void }) {
-  return (
-    <>
-      <PageTitle eyebrow="Identity & authorization" title="Truy cập" description="Quản lý vai trò, policy và phạm vi truy cập. Mọi quyết định không xác định đều bị từ chối." action={<button className="primary-button" onClick={onCreate}>＋ Tạo vai trò</button>} />
-      <section className="access-summary"><div><span>Người dùng hoạt động</span><strong>197</strong><small>+12 trong 30 ngày</small></div><div><span>Vai trò</span><strong>14</strong><small>4 vai trò hệ thống</small></div><div><span>Policies</span><strong>33</strong><small>100% đã biên dịch</small></div><div><span>Yêu cầu bị từ chối</span><strong>28</strong><small>24 giờ gần nhất</small></div></section>
-      <div className="role-grid">{items.map((role, index) => <article className="panel role-card" key={role.id}><div className={`role-badge ${["violet","blue","amber","teal"][index%4]}`}>{role.name.split(" ").map(x => x[0]).join("").slice(0,2)}</div><div className="role-copy"><h3>{role.name}</h3><p>{role.scope}</p></div><button aria-label={`Mở ${role.name}`}>•••</button><dl><div><dt>Người dùng</dt><dd>{role.users}</dd></div><div><dt>Policies</dt><dd>{role.policies}</dd></div></dl></article>)}</div>
-      <section className="panel policy-banner"><div className="policy-icon">✓</div><div><h3>Permission engine đang ở chế độ fail-closed</h3><p>Policy không tồn tại hoặc evaluation lỗi sẽ trả về Deny. Revision hiện tại: <code>perm-r1842</code></p></div><button className="secondary-button">Mở Policy Explorer</button></section>
-    </>
-  );
+function Users() {
+  const [items,setItems]=useState<AccessUser[]>([]);const [roles,setRoles]=useState<AccessRole[]>([]);const [organizations,setOrganizations]=useState<Organization[]>([]);
+  const [email,setEmail]=useState("");const [displayName,setDisplayName]=useState("");const [password,setPassword]=useState("");const [roleId,setRoleId]=useState("");const [orgId,setOrgId]=useState("");const [message,setMessage]=useState("");
+  const load=async()=>{try{const [usersData,rolesData,orgData]=await Promise.all([apiRequest<AccessUser[]>("/api/v1/access/users"),apiRequest<AccessRole[]>("/api/v1/access/roles"),apiRequest<Organization[]>("/api/v1/access/organizations")]);setItems(usersData);setRoles(rolesData);setOrganizations(orgData);if(!roleId&&rolesData[0])setRoleId(rolesData[0].id);setMessage("");}catch(error){setMessage(error instanceof Error?error.message:"Không thể tải người dùng");}};
+  useEffect(()=>{void load();},[]);
+  const create=async()=>{try{if(!roleId)throw new Error("Vui lòng chọn vai trò.");await apiRequest<AccessUser>("/api/v1/access/users",{method:"POST",body:JSON.stringify({email,displayName,password,roleIds:[roleId],orgId:orgId||null})});setEmail("");setDisplayName("");setPassword("");setMessage("Đã tạo tài khoản và gán vai trò.");await load();}catch(error){setMessage(error instanceof Error?error.message:"Không thể tạo tài khoản");}};
+  const toggle=async(item:AccessUser)=>{try{await apiRequest<void>(`/api/v1/access/users/${item.id}/enabled`,{method:"PATCH",body:JSON.stringify({enabled:!item.enabled})});await load();}catch(error){setMessage(error instanceof Error?error.message:"Không thể đổi trạng thái");}};
+  const reset=async(item:AccessUser)=>{try{const result=await apiRequest<{tempPassword:string}>(`/api/v1/access/users/${item.id}/reset-password`,{method:"POST"});setMessage(`Mật khẩu tạm thời của ${item.email}: ${result.tempPassword} — chỉ sao chép và bàn giao một lần.`);}catch(error){setMessage(error instanceof Error?error.message:"Không thể đặt lại mật khẩu");}};
+  return <><PageTitle eyebrow="Organization & access" title="Người dùng" description="Quản lý tài khoản nội bộ, trạng thái và vai trò trong deployment hiện tại." />
+    {message&&<p className="operation-message" role="status">{message}</p>}
+    <section className="panel settings-form"><div className="panel-header"><div><h2>Tạo tài khoản</h2><p>Mật khẩu ban đầu tối thiểu 12 ký tự; người dùng phải đổi sau khi được đặt lại.</p></div></div><div className="form-grid"><label>Họ và tên<input value={displayName} onChange={e=>setDisplayName(e.target.value)} /></label><label>Email<input type="email" value={email} onChange={e=>setEmail(e.target.value)} /></label><label>Mật khẩu ban đầu<input type="password" value={password} onChange={e=>setPassword(e.target.value)} /></label><label>Vai trò<select value={roleId} onChange={e=>setRoleId(e.target.value)}>{roles.map(role=><option key={role.id} value={role.id}>{role.name}</option>)}</select></label><label>Đơn vị<select value={orgId} onChange={e=>setOrgId(e.target.value)}><option value="">Không gán</option>{organizations.map(org=><option key={org.id} value={org.id}>{org.name}</option>)}</select></label></div><button className="primary-button" onClick={create}>＋ Tạo người dùng</button></section>
+    <section className="panel table-panel"><div className="data-table access-table"><div className="table-row table-head"><span>Người dùng</span><span>Vai trò</span><span>Trạng thái</span><span>Ngày tạo</span><span>Thao tác</span><span></span></div>{items.map(item=><div className="table-row" key={item.id}><span><strong>{item.displayName}</strong><small>{item.email}</small></span><span>{item.roles.join(", ")||"Chưa gán"}</span><span><em className={`state ${item.enabled?"teal":"gray"}`}>{item.enabled?"ACTIVE":"DISABLED"}</em></span><span>{new Date(item.createdAt).toLocaleDateString("vi-VN")}</span><span><button className="text-button" onClick={()=>void toggle(item)}>{item.enabled?"Vô hiệu hóa":"Kích hoạt"}</button></span><span><button className="text-button" onClick={()=>void reset(item)}>Đặt lại mật khẩu</button></span></div>)}</div></section>
+  </>;
+}
+
+function Organizations() {
+  const [items,setItems]=useState<Organization[]>([]);const [code,setCode]=useState("");const [name,setName]=useState("");const [parentCode,setParentCode]=useState("");const [message,setMessage]=useState("");
+  const load=async()=>{try{setItems(await apiRequest<Organization[]>("/api/v1/access/organizations"));}catch(error){setMessage(error instanceof Error?error.message:"Không thể tải cơ cấu tổ chức");}};
+  useEffect(()=>{void load();},[]);
+  const create=async()=>{try{await apiRequest<Organization>("/api/v1/access/organizations",{method:"POST",body:JSON.stringify({code,name,parentCode:parentCode||null})});setCode("");setName("");setParentCode("");setMessage("Đã tạo đơn vị tổ chức.");await load();}catch(error){setMessage(error instanceof Error?error.message:"Không thể tạo đơn vị");}};
+  return <><PageTitle eyebrow="Organization model" title="Cơ cấu tổ chức" description="Công ty, đơn vị và phòng ban trong deployment của khách hàng; không phải mô hình SaaS nhiều khách hàng." />{message&&<p className="operation-message" role="status">{message}</p>}
+    <section className="panel settings-form"><div className="form-grid"><label>Mã đơn vị<input value={code} onChange={e=>setCode(e.target.value)} placeholder="sales-hcm" /></label><label>Tên đơn vị<input value={name} onChange={e=>setName(e.target.value)} placeholder="Phòng Kinh doanh HCM" /></label><label>Đơn vị cha<select value={parentCode} onChange={e=>setParentCode(e.target.value)}><option value="">Cấp cao nhất</option>{items.map(item=><option key={item.id} value={item.code}>{item.name}</option>)}</select></label></div><button className="primary-button" onClick={create}>＋ Tạo đơn vị</button></section>
+    <section className="panel table-panel"><div className="data-table"><div className="table-row table-head"><span>Mã</span><span>Tên đơn vị</span><span>Đơn vị cha</span><span>Trạng thái</span><span>Ngày tạo</span><span></span></div>{items.map(item=><div className="table-row" key={item.id}><span><code>{item.code}</code></span><span><strong>{item.name}</strong></span><span>{item.parentCode||"—"}</span><span><em className="state teal">{item.status}</em></span><span>{new Date(item.createdAt).toLocaleDateString("vi-VN")}</span><span></span></div>)}</div></section>
+  </>;
+}
+
+function Access() {
+  const [roles,setRoles]=useState<AccessRole[]>([]);const [policies,setPolicies]=useState<AccessPolicy[]>([]);const [code,setCode]=useState("");const [name,setName]=useState("");const [message,setMessage]=useState("");
+  const load=async()=>{try{const [roleData,policyData]=await Promise.all([apiRequest<AccessRole[]>("/api/v1/access/roles"),apiRequest<AccessPolicy[]>("/api/v1/access/policies")]);setRoles(roleData);setPolicies(policyData);}catch(error){setMessage(error instanceof Error?error.message:"Không thể tải phân quyền");}};
+  useEffect(()=>{void load();},[]);
+  const createRole=async()=>{try{await apiRequest<AccessRole>("/api/v1/access/roles",{method:"POST",body:JSON.stringify({code,name})});setCode("");setName("");setMessage("Đã tạo vai trò.");await load();}catch(error){setMessage(error instanceof Error?error.message:"Không thể tạo vai trò");}};
+  return <><PageTitle eyebrow="Identity & authorization" title="Vai trò & phân quyền" description="Quản lý vai trò và policy. Backend luôn kiểm tra quyền theo nguyên tắc fail-closed." />{message&&<p className="operation-message" role="status">{message}</p>}
+    <section className="access-summary"><div><span>Vai trò</span><strong>{roles.length}</strong><small>{roles.filter(role=>role.systemRole).length} vai trò hệ thống</small></div><div><span>Policies</span><strong>{policies.length}</strong><small>{policies.filter(policy=>policy.enabled).length} đang hiệu lực</small></div><div><span>Allow</span><strong>{policies.filter(policy=>policy.effect==="ALLOW").length}</strong><small>quy tắc cấp quyền</small></div><div><span>Deny</span><strong>{policies.filter(policy=>policy.effect==="DENY").length}</strong><small>được ưu tiên khi đánh giá</small></div></section>
+    <section className="panel settings-form"><div className="form-grid"><label>Mã vai trò<input value={code} onChange={e=>setCode(e.target.value)} placeholder="department-manager" /></label><label>Tên vai trò<input value={name} onChange={e=>setName(e.target.value)} placeholder="Trưởng phòng" /></label></div><button className="primary-button" onClick={createRole}>＋ Tạo vai trò</button></section>
+    <div className="role-grid">{roles.map((role,index)=><article className="panel role-card" key={role.id}><div className={`role-badge ${["violet","blue","amber","teal"][index%4]}`}>{role.name.split(" ").map(value=>value[0]).join("").slice(0,2)}</div><div className="role-copy"><h3>{role.name}</h3><p><code>{role.code}</code></p></div><span className={`state ${role.systemRole?"amber":"teal"}`}>{role.systemRole?"SYSTEM":"CUSTOM"}</span></article>)}</div>
+    <section className="panel table-panel"><div className="data-table"><div className="table-row table-head"><span>Policy</span><span>Resource</span><span>Action</span><span>Effect</span><span>Version</span><span>Trạng thái</span></div>{policies.map(policy=><div className="table-row" key={policy.id}><span><code>{policy.code}</code></span><span>{policy.resourceType}</span><span>{policy.action}</span><span><em className={`state ${policy.effect==="ALLOW"?"teal":"amber"}`}>{policy.effect}</em></span><span>v{policy.version}</span><span>{policy.enabled?"Đang hiệu lực":"Đã tắt"}</span></div>)}</div></section>
+    <section className="panel policy-banner"><div className="policy-icon">✓</div><div><h3>Permission engine đang ở chế độ fail-closed</h3><p>Menu chỉ hỗ trợ khám phá chức năng; API vẫn là điểm thực thi quyền bắt buộc.</p></div></section>
+  </>;
 }
 
 function Activity({ items }: { items: ActivityItem[] }) {
@@ -288,16 +337,16 @@ function Settings({ values, onSave }: { values: Record<string,string>; onSave: (
   return (
     <>
       <PageTitle eyebrow="Deployment configuration" title="Cấu hình" description="Thông tin môi trường và các chính sách vận hành đang có hiệu lực." action={<button className="primary-button" onClick={() => onSave([{key:"environment.name",value:name},{key:"environment.tier",value:tier},{key:"environment.region",value:region},{key:"environment.publicUrl",value:url}])}>Lưu thay đổi</button>} />
-      <div className="settings-layout"><aside className="settings-nav"><button className="active">Tổng quát</button><button>Bảo mật</button><button>Tenant</button><button>Retention</button><button>Thông báo</button><button>Integrations</button></aside><section className="panel settings-form"><h2>Thông tin deployment</h2><p>Thay đổi được lưu vào PostgreSQL và ghi audit.</p><label>Tên môi trường<input value={name} onChange={e=>setName(e.target.value)} /></label><div className="form-grid"><label>Service tier<select value={tier} onChange={e=>setTier(e.target.value)}><option value="pilot">Pilot</option><option value="standard">Standard</option><option value="critical">Critical</option></select></label><label>Khu vực<input value={region} onChange={e=>setRegion(e.target.value)} /></label></div><label>Public base URL<input value={url} onChange={e=>setUrl(e.target.value)} /></label></section></div>
+      <div className="settings-layout"><aside className="settings-nav"><button className="active">Tổng quát</button><button>Bảo mật</button><button>Retention</button><button>Thông báo</button><button>Integrations</button></aside><section className="panel settings-form"><h2>Thông tin deployment</h2><p>Thay đổi được lưu vào PostgreSQL và ghi audit. Tenant kỹ thuật không được trình bày như một chức năng SaaS.</p><label>Tên môi trường<input value={name} onChange={e=>setName(e.target.value)} /></label><div className="form-grid"><label>Service tier<select value={tier} onChange={e=>setTier(e.target.value)}><option value="pilot">Pilot</option><option value="standard">Standard</option><option value="critical">Critical</option></select></label><label>Khu vực<input value={region} onChange={e=>setRegion(e.target.value)} /></label></div><label>Public base URL<input value={url} onChange={e=>setUrl(e.target.value)} /></label></section></div>
     </>
   );
 }
 
-function BusinessHome({ workspace, onOpen }: { workspace: NavigationWorkspace; onOpen: (item: NavigationItem) => void }) {
-  const pages = workspace.items.filter(item => item.type === "PAGE" && item.viewKey !== "business-home");
+function BusinessHome({ section, onOpen }: { section: NavigationSection; onOpen: (item: NavigationItem) => void }) {
+  const pages = section.items.filter(item => item.type === "PAGE" && item.viewKey !== "home");
   return <>
-    <PageTitle eyebrow="Business Workspace" title="Không gian nghiệp vụ" description="Các phân hệ được tự động đăng ký từ module đang bật và chỉ hiển thị theo quyền của tài khoản." />
-    <section className="business-hero panel"><div><span className="business-hero-icon">▦</span><p className="eyebrow">Workspace động</p><h2>Chọn phân hệ để bắt đầu</h2><p>Menu nghiệp vụ được tách khỏi Control Plane. Khi cài thêm module, chức năng được đưa vào đúng Workspace mà không sửa Core shell.</p></div><strong>{pages.length}<small>phân hệ được cấp quyền</small></strong></section>
+    <PageTitle eyebrow="Ứng dụng doanh nghiệp" title="Trang chủ" description="Các phân hệ được đăng ký động từ module đang bật và chỉ hiển thị theo quyền của tài khoản." />
+    <section className="business-hero panel"><div><span className="business-hero-icon">▦</span><p className="eyebrow">Điều hướng hợp nhất</p><h2>Chọn phân hệ để bắt đầu</h2><p>Module mới tự đăng ký vào đúng nhóm menu. Giao diện không tách Workspace và không giả định mô hình SaaS.</p></div><strong>{pages.length}<small>phân hệ được cấp quyền</small></strong></section>
     <section className="business-module-grid" aria-label="Phân hệ nghiệp vụ">
       {pages.map(item => <button key={item.key} className="business-module-card" onClick={() => onOpen(item)}><span>{item.icon}</span><div><small>{item.ownerModule}</small><strong>{item.label}</strong><p>{item.keywords.slice(0,3).join(" · ")}</p></div><b>→</b></button>)}
       {pages.length === 0 && <div className="empty-workspace"><span>◇</span><h2>Chưa có phân hệ được cấp quyền</h2><p>Liên hệ quản trị viên để bật module hoặc gán policy phù hợp.</p></div>}
@@ -325,63 +374,58 @@ function ApprovalWorkspace() {
 
 export default function Home() {
   const [authenticated,setAuthenticated]=useState(false);const [authReady,setAuthReady]=useState(false);const [user,setUser]=useState<UserInfo|null>(null);
-  const [navigation,setNavigation]=useState<NavigationModel|null>(null);const [workspaceKey,setWorkspaceKey]=useState("");const [expandedGroup,setExpandedGroup]=useState("");const [view,setView]=useState<View>("business-home");
+  const [navigation,setNavigation]=useState<NavigationModel|null>(null);const [expandedGroup,setExpandedGroup]=useState("");const [view,setView]=useState<View>("home");
   const [sidebarOpen,setSidebarOpen]=useState(false);const [commandOpen,setCommandOpen]=useState(false);const [commandQuery,setCommandQuery]=useState("");const [notificationsOpen,setNotificationsOpen]=useState(false);const [profileOpen,setProfileOpen]=useState(false);const [logoutOpen,setLogoutOpen]=useState(false);
   const [apiOnline,setApiOnline]=useState(false);const [data,setData]=useState<BootstrapData|null>(null);const [operationError,setOperationError]=useState("");
-  const token=()=>window.localStorage.getItem("core-access-token")||window.sessionStorage.getItem("core-access-token")||"";
-  const authHeaders=()=>({Authorization:`Bearer ${token()}`});
+  const authHeaders=()=>({Authorization:`Bearer ${storedToken()}`});
 
-  useEffect(()=>{const existing=token();if(!existing){setAuthReady(true);return;}fetch(`${API_URL}/api/v1/auth/me`,{headers:{Authorization:`Bearer ${existing}`}}).then(async r=>{if(!r.ok)throw new Error();setUser(await r.json());setAuthenticated(true);setApiOnline(true);}).catch(()=>{window.localStorage.removeItem("core-access-token");window.sessionStorage.removeItem("core-access-token");}).finally(()=>setAuthReady(true));},[]);
+  useEffect(()=>{const existing=storedToken();if(!existing){setAuthReady(true);return;}fetch(`${API_URL}/api/v1/auth/me`,{headers:{Authorization:`Bearer ${existing}`}}).then(async response=>{if(!response.ok)throw new Error();setUser(await response.json());setAuthenticated(true);setApiOnline(true);}).catch(()=>{window.localStorage.removeItem("core-access-token");window.sessionStorage.removeItem("core-access-token");}).finally(()=>setAuthReady(true));},[]);
 
-  const selectInitialNavigation=(model:NavigationModel)=>{const pages=model.workspaces.flatMap(workspace=>workspace.items.filter(item=>item.type==="PAGE").map(item=>({workspace,item})));const hashRoute=`/${window.location.hash}`;const fromRoute=pages.find(entry=>entry.item.route===hashRoute);const workspace=model.workspaces.find(item=>item.key===(fromRoute?.workspace.key||model.currentWorkspaceKey||model.defaultWorkspaceKey))||model.workspaces[0];const item=fromRoute?.item||workspace?.items.find(entry=>entry.type==="PAGE");if(workspace)setWorkspaceKey(workspace.key);if(item){setView(item.viewKey as View);setExpandedGroup(item.parentKey);}};
-  const loadNavigation=async()=>{const response=await fetch(`${API_URL}/api/v1/navigation/me`,{headers:authHeaders()});if(!response.ok)throw new Error("Không thể tải Navigation Registry");const model:NavigationModel=await response.json();setNavigation(model);selectInitialNavigation(model);return model;};
-  const refresh=async()=>{const response=await fetch(`${API_URL}/api/v1/control-plane/bootstrap`,{headers:authHeaders()});if(!response.ok)throw new Error("Không thể tải dữ liệu Control Plane");setData(await response.json());};
+  const selectRoute=(model:NavigationModel)=>{const pages=model.sections.flatMap(section=>section.items.filter(item=>item.type==="PAGE").map(item=>({section,item})));const route=window.location.pathname;const selected=pages.find(entry=>entry.item.route===route)||pages.find(entry=>entry.item.key==="core.home")||pages[0];if(selected){setView(selected.item.viewKey as View);setExpandedGroup(selected.item.parentKey);}};
+  const loadNavigation=async()=>{const model=await apiRequest<NavigationModel>("/api/v1/navigation/me");setNavigation(model);selectRoute(model);return model;};
+  const refresh=async()=>setData(await apiRequest<BootstrapData>("/api/v1/control-plane/bootstrap"));
 
-  useEffect(()=>{if(!authenticated)return;(async()=>{try{const [me,model]=await Promise.all([fetch(`${API_URL}/api/v1/auth/me`,{headers:authHeaders()}).then(r=>{if(!r.ok)throw new Error();return r.json();}),loadNavigation()]);setUser(me);if(model.workspaces.some(workspace=>workspace.category==="ADMIN"))await refresh();setApiOnline(true);}catch{setApiOnline(false);setOperationError("Không thể khởi tạo Workspace. Vui lòng đăng nhập lại hoặc kiểm tra backend.");}})();},[authenticated]);
+  useEffect(()=>{if(!authenticated)return;void(async()=>{try{const [me,model]=await Promise.all([apiRequest<UserInfo>("/api/v1/auth/me"),loadNavigation()]);setUser(me);if(model.sections.some(section=>section.key==="system-administration"))await refresh();setApiOnline(true);setOperationError("");}catch{setApiOnline(false);setOperationError("Không thể khởi tạo ứng dụng. Vui lòng đăng nhập lại hoặc kiểm tra backend.");}})();},[authenticated]);
   useEffect(()=>{const handler=(event:KeyboardEvent)=>{if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==="k"){event.preventDefault();setCommandOpen(true);}if(event.key==="Escape"){setCommandOpen(false);setNotificationsOpen(false);setProfileOpen(false);setLogoutOpen(false);setSidebarOpen(false);}};window.addEventListener("keydown",handler);return()=>window.removeEventListener("keydown",handler);},[]);
+  useEffect(()=>{if(!navigation)return;const handler=()=>selectRoute(navigation);window.addEventListener("popstate",handler);return()=>window.removeEventListener("popstate",handler);},[navigation]);
 
-  const workspaces=navigation?.workspaces??[];const allPages=useMemo(()=>workspaces.flatMap(workspace=>workspace.items.filter(item=>item.type==="PAGE").map(item=>({workspace,item}))),[workspaces]);
-  const activeWorkspace=workspaces.find(item=>item.key===workspaceKey)||workspaces[0];const currentEntry=allPages.find(entry=>entry.item.viewKey===view);const currentLabel=currentEntry?.item.label??"Workspace";
-  const favoriteEntries=(navigation?.favoriteKeys??[]).map(key=>allPages.find(entry=>entry.item.key===key)).filter((entry):entry is {workspace:NavigationWorkspace;item:NavigationItem}=>Boolean(entry));
-  const commandEntries=allPages.filter(entry=>{const text=`${entry.item.label} ${entry.item.keywords.join(" ")} ${entry.workspace.label}`.toLowerCase();return text.includes(commandQuery.toLowerCase());}).sort((a,b)=>{const recent=navigation?.recentKeys??[];const ai=recent.indexOf(a.item.key),bi=recent.indexOf(b.item.key);return(ai<0?999:ai)-(bi<0?999:bi)||a.item.sortOrder-b.item.sortOrder;});
+  const sections=navigation?.sections??[];const allPages=useMemo(()=>sections.flatMap(section=>section.items.filter(item=>item.type==="PAGE").map(item=>({section,item}))),[sections]);
+  const currentEntry=allPages.find(entry=>entry.item.viewKey===view);const currentLabel=currentEntry?.item.label??"Trang chủ";const currentSection=currentEntry?.section;
+  const favoriteEntries=(navigation?.favoriteKeys??[]).map(key=>allPages.find(entry=>entry.item.key===key)).filter((entry):entry is {section:NavigationSection;item:NavigationItem}=>Boolean(entry));
+  const commandEntries=allPages.filter(entry=>`${entry.item.label} ${entry.item.keywords.join(" ")} ${entry.section.label}`.toLowerCase().includes(commandQuery.toLowerCase())).sort((left,right)=>{const recent=navigation?.recentKeys??[];const leftIndex=recent.indexOf(left.item.key),rightIndex=recent.indexOf(right.item.key);return(leftIndex<0?999:leftIndex)-(rightIndex<0?999:rightIndex)||left.item.sortOrder-right.item.sortOrder;});
 
-  const savePreferences=async(favoriteKeys:string[],recentKeys:string[],lastWorkspaceKey:string)=>{const response=await fetch(`${API_URL}/api/v1/navigation/me/preferences`,{method:"PUT",headers:{...authHeaders(),"Content-Type":"application/json"},body:JSON.stringify({favoriteKeys,recentKeys,lastWorkspaceKey})});if(response.ok)setNavigation(await response.json());};
-  const openItem=(item:NavigationItem)=>{if(item.type!=="PAGE")return;const owner=workspaces.find(workspace=>workspace.items.some(candidate=>candidate.key===item.key));if(owner)setWorkspaceKey(owner.key);setView(item.viewKey as View);setExpandedGroup(item.parentKey);setSidebarOpen(false);setCommandOpen(false);setCommandQuery("");window.history.replaceState(null,"",item.route);window.scrollTo({top:0,behavior:"smooth"});if(navigation){const recent=[item.key,...navigation.recentKeys.filter(key=>key!==item.key)].slice(0,10);void savePreferences(navigation.favoriteKeys,recent,owner?.key||workspaceKey);}};
+  const savePreferences=async(favoriteKeys:string[],recentKeys:string[])=>{try{setNavigation(await apiRequest<NavigationModel>("/api/v1/navigation/me/preferences",{method:"PUT",body:JSON.stringify({favoriteKeys,recentKeys})}));}catch{setOperationError("Không thể lưu tùy chọn điều hướng.");}};
+  const openItem=(item:NavigationItem)=>{if(item.type!=="PAGE")return;setView(item.viewKey as View);setExpandedGroup(item.parentKey);setSidebarOpen(false);setCommandOpen(false);setCommandQuery("");if(window.location.pathname!==item.route)window.history.pushState(null,"",item.route);window.scrollTo({top:0,behavior:"smooth"});if(navigation){const recent=[item.key,...navigation.recentKeys.filter(key=>key!==item.key)].slice(0,10);void savePreferences(navigation.favoriteKeys,recent);}};
   const navigate=(next:View)=>{const entry=allPages.find(candidate=>candidate.item.viewKey===next);if(entry)openItem(entry.item);};
-  const changeWorkspace=(key:string)=>{const workspace=workspaces.find(item=>item.key===key);const preferred=(navigation?.recentKeys??[]).map(recent=>workspace?.items.find(item=>item.key===recent&&item.type==="PAGE")).find(Boolean);const first=preferred||workspace?.items.find(item=>item.type==="PAGE");if(first)openItem(first);else setWorkspaceKey(key);};
-  const toggleFavorite=(item:NavigationItem)=>{if(!navigation)return;const favoriteKeys=navigation.favoriteKeys.includes(item.key)?navigation.favoriteKeys.filter(key=>key!==item.key):[...navigation.favoriteKeys,item.key].slice(0,20);void savePreferences(favoriteKeys,navigation.recentKeys,workspaceKey);};
-  const mutate=async(path:string,method:string,body?:unknown)=>{setOperationError("");const response=await fetch(`${API_URL}${path}`,{method,headers:{...authHeaders(),"Content-Type":"application/json"},body:body===undefined?undefined:JSON.stringify(body)});if(!response.ok){const problem=await response.json().catch(()=>({}));const message=problem.detail||"Thao tác thất bại";setOperationError(message);throw new Error(message);}await refresh();};
+  const toggleFavorite=(item:NavigationItem)=>{if(!navigation)return;const favoriteKeys=navigation.favoriteKeys.includes(item.key)?navigation.favoriteKeys.filter(key=>key!==item.key):[...navigation.favoriteKeys,item.key].slice(0,20);void savePreferences(favoriteKeys,navigation.recentKeys);};
+  const mutate=async(path:string,method:string,body?:unknown)=>{setOperationError("");try{await apiRequest<void>(path,{method,body:body===undefined?undefined:JSON.stringify(body)});await refresh();}catch(error){const message=error instanceof Error?error.message:"Thao tác thất bại";setOperationError(message);throw error;}};
   const changeModuleStatus=async(item:ModuleItem)=>{try{await mutate(`/api/v1/control-plane/modules/${item.id}/status`,"PATCH",{status:item.status==="DISABLED"?"HEALTHY":"DISABLED"});await loadNavigation();}catch{}};
-  const createRole=()=>{const name=window.prompt("Tên vai trò");if(name)mutate("/api/v1/control-plane/roles","POST",{name,scope:"Toàn deployment"}).catch(()=>undefined);};
-  const uploadFile=async(file:File)=>{setOperationError("");const form=new FormData();form.append("file",file);const response=await fetch(`${API_URL}/api/v1/files?classification=INTERNAL`,{method:"POST",headers:authHeaders(),body:form});if(!response.ok){const p=await response.json().catch(()=>({}));setOperationError(p.detail||"Upload thất bại");return;}await refresh();};
-  const downloadFile=async(item:FileItem)=>{const response=await fetch(`${API_URL}/api/v1/files/${item.id}/content`,{headers:authHeaders()});if(!response.ok){const p=await response.json().catch(()=>({}));setOperationError(p.detail||"Nội dung file chưa sẵn sàng");return;}const url=URL.createObjectURL(await response.blob());const a=document.createElement("a");a.href=url;a.download=item.name;a.click();URL.revokeObjectURL(url);};
+  const uploadFile=async(file:File)=>{setOperationError("");const form=new FormData();form.append("file",file);const response=await fetch(`${API_URL}/api/v1/files?classification=INTERNAL`,{method:"POST",headers:authHeaders(),body:form});if(!response.ok){const problem=await response.json().catch(()=>({}));setOperationError(problem.detail||"Upload thất bại");return;}await refresh();};
+  const downloadFile=async(item:FileItem)=>{const response=await fetch(`${API_URL}/api/v1/files/${item.id}/content`,{headers:authHeaders()});if(!response.ok){const problem=await response.json().catch(()=>({}));setOperationError(problem.detail||"Nội dung file chưa sẵn sàng");return;}const url=URL.createObjectURL(await response.blob());const anchor=document.createElement("a");anchor.href=url;anchor.download=item.name;anchor.click();URL.revokeObjectURL(url);};
   const signIn=(accessToken:string,remember:boolean)=>{(remember?window.localStorage:window.sessionStorage).setItem("core-access-token",accessToken);setNavigation(null);setApiOnline(true);setAuthenticated(true);};
-  const signOut=async()=>{const accessToken=token();if(accessToken)await fetch(`${API_URL}/api/v1/auth/logout`,{method:"POST",headers:{Authorization:`Bearer ${accessToken}`}}).catch(()=>undefined);window.localStorage.removeItem("core-access-token");window.sessionStorage.removeItem("core-access-token");setAuthenticated(false);setNavigation(null);setData(null);setUser(null);setLogoutOpen(false);setProfileOpen(false);setView("business-home");};
-  const initials=(user?.displayName||user?.email||"CP").split(/\s+/).map(part=>part[0]).join("").slice(0,2).toUpperCase();const settingsItem=allPages.find(entry=>entry.item.viewKey==="settings")?.item;
+  const signOut=async()=>{const accessToken=storedToken();if(accessToken)await fetch(`${API_URL}/api/v1/auth/logout`,{method:"POST",headers:{Authorization:`Bearer ${accessToken}`}}).catch(()=>undefined);window.localStorage.removeItem("core-access-token");window.sessionStorage.removeItem("core-access-token");window.history.replaceState(null,"","/");setAuthenticated(false);setNavigation(null);setData(null);setUser(null);setLogoutOpen(false);setProfileOpen(false);setView("home");};
+  const initials=(user?.displayName||user?.email||"CP").split(/\s+/).map(part=>part[0]).join("").slice(0,2).toUpperCase();const settingsItem=allPages.find(entry=>entry.item.viewKey==="settings")?.item;const businessSection=sections.find(section=>section.key==="business");
   const renderPageButton=(item:NavigationItem,compact=false)=><div className={`nav-entry ${compact?"compact":""}`} key={item.key}><button className={view===item.viewKey?"active":""} onClick={()=>openItem(item)}><span className="nav-icon">{item.icon}</span><span>{item.label}</span></button><button className={`favorite-toggle ${navigation?.favoriteKeys.includes(item.key)?"selected":""}`} aria-label={`${navigation?.favoriteKeys.includes(item.key)?"Bỏ":"Thêm"} yêu thích ${item.label}`} onClick={()=>toggleFavorite(item)}>☆</button></div>;
 
   if(!authReady)return <div className="auth-loading" aria-label="Đang kiểm tra phiên đăng nhập"><span/></div>;
   if(!authenticated)return <LoginScreen onAuthenticated={signIn}/>;
   if(!navigation)return <div className="auth-loading" aria-label="Đang tải Navigation Registry"><span/></div>;
 
-  const topLevel=activeWorkspace?.items.filter(item=>!item.parentKey)??[];
   return <div className="app-shell">
     <aside className={`sidebar ${sidebarOpen?"open":""}`}>
       <div className="brand"><div className="brand-mark"><i/><i/><i/><i/></div><div><strong>Core</strong><span>Platform</span></div></div>
-      <label className="workspace-switcher"><span>{activeWorkspace?.icon||"▦"}</span><div><small>Workspace</small><select value={activeWorkspace?.key||""} onChange={event=>changeWorkspace(event.target.value)} aria-label="Chọn Workspace">{workspaces.map(workspace=><option key={workspace.key} value={workspace.key}>{workspace.label}</option>)}</select></div><b>⌄</b></label>
-      <nav aria-label="Điều hướng Workspace">
+      <nav aria-label="Điều hướng ứng dụng">
         {favoriteEntries.length>0&&<><p>Yêu thích</p>{favoriteEntries.slice(0,5).map(entry=>renderPageButton(entry.item,true))}</>}
-        <p>{activeWorkspace?.category==="ADMIN"?"Quản trị hệ thống":"Phân hệ nghiệp vụ"}</p>
-        {topLevel.map(item=>item.type==="GROUP"?<div className={`nav-group ${expandedGroup===item.key?"open":""}`} key={item.key}><button className="nav-group-trigger" onClick={()=>setExpandedGroup(expandedGroup===item.key?"":item.key)}><span className="nav-icon">{item.icon}</span><span>{item.label}</span><b>⌄</b></button>{expandedGroup===item.key&&<div className="nav-children">{activeWorkspace?.items.filter(child=>child.parentKey===item.key&&child.type==="PAGE").map(child=>renderPageButton(child))}</div>}</div>:renderPageButton(item))}
+        {sections.map(section=><section className="nav-section" key={section.key}><p>{section.label}</p>{section.items.filter(item=>!item.parentKey).map(item=>item.type==="GROUP"?<div className={`nav-group ${expandedGroup===item.key?"open":""}`} key={item.key}><button className="nav-group-trigger" onClick={()=>setExpandedGroup(expandedGroup===item.key?"":item.key)}><span className="nav-icon">{item.icon}</span><span>{item.label}</span><b>⌄</b></button>{expandedGroup===item.key&&<div className="nav-children">{section.items.filter(child=>child.parentKey===item.key&&child.type==="PAGE").map(child=>renderPageButton(child))}</div>}</div>:renderPageButton(item))}</section>)}
       </nav>
       <div className="sidebar-status"><div><StatusDot tone={apiOnline?"teal":"amber"}/><strong>{apiOnline?"Backend connected":"Backend unavailable"}</strong></div><span>Navigation {navigation.revision}</span></div>
     </aside>
     {sidebarOpen&&<button className="sidebar-scrim" aria-label="Đóng menu" onClick={()=>setSidebarOpen(false)}/>}
-    <div className="main-area"><header className="topbar"><button className="mobile-menu" aria-label="Mở menu" onClick={()=>setSidebarOpen(true)}>☰</button><div className="breadcrumb"><span>{activeWorkspace?.label||"Workspace"}</span><b>/</b><strong>{currentLabel}</strong></div><button className="command-trigger" onClick={()=>setCommandOpen(true)}><span>⌕</span> Tìm module hoặc chức năng... <kbd>⌘ K</kbd></button><div className="top-actions"><button aria-label="Trợ giúp">?</button><button aria-label="Thông báo" className="notification-button" onClick={()=>{setNotificationsOpen(!notificationsOpen);setProfileOpen(false);}}>♢<i/></button><button className="profile-button" aria-expanded={profileOpen} onClick={()=>{setProfileOpen(!profileOpen);setNotificationsOpen(false);}}><span>{initials}</span><div><strong>{user?.displayName||"Người dùng"}</strong><small>{user?.role==="PLATFORM_ADMIN"?"Platform Admin":"Application User"}</small></div><b>⌄</b></button></div>
-      {notificationsOpen&&<div className="notification-popover"><div><strong>Thông báo</strong><button onClick={()=>setNotificationsOpen(false)}>×</button></div><article><span className="notice teal">✓</span><p><strong>Navigation Registry đã đồng bộ</strong><small>Menu được lọc theo module và quyền hiện tại.</small></p><time>Live</time></article></div>}
-      {profileOpen&&<div className="profile-popover"><div className="profile-summary"><span>{initials}</span><p><strong>{user?.displayName||"Người dùng"}</strong><small>{user?.email}</small></p></div><div className="profile-role"><span>{user?.role}</span><em>{activeWorkspace?.label}</em></div>{settingsItem&&<button onClick={()=>{openItem(settingsItem);setProfileOpen(false);}}><span>⚙</span> Hồ sơ & bảo mật</button>}<button onClick={()=>setLogoutOpen(true)} className="logout-action"><span>↪</span> Đăng xuất</button></div>}
-    </header><main>{operationError&&<p className="auth-error" role="alert">{operationError}</p>}{view==="business-home"&&activeWorkspace&&<BusinessHome workspace={activeWorkspace} onOpen={openItem}/>} {view==="approvals"&&<ApprovalWorkspace/>}{data&&view==="overview"&&<Overview onNavigate={navigate} data={data} displayName={user?.displayName}/>} {data&&view==="modules"&&<Modules items={data.modules} onStatus={changeModuleStatus}/>} {data&&view==="resources"&&<Resources items={data.resources} onChanged={refresh}/>} {data&&view==="access"&&<Access items={data.roles} onCreate={createRole}/>} {data&&view==="activity"&&<Activity items={data.activities}/>} {data&&view==="files"&&<Files items={data.files} storageGb={data.summary.storageGb} onUpload={uploadFile} onDownload={downloadFile}/>} {data&&view==="settings"&&<Settings values={data.settings} onSave={items=>mutate("/api/v1/control-plane/settings","PUT",items)}/>} {activeWorkspace?.category==="ADMIN"&&!data&&<div className="auth-loading" aria-label="Đang tải Control Plane"><span/></div>}</main></div>
-    {commandOpen&&<div className="modal-backdrop" role="presentation" onMouseDown={()=>setCommandOpen(false)}><section className="command-modal" role="dialog" aria-modal="true" aria-label="Command palette" onMouseDown={event=>event.stopPropagation()}><div className="command-input"><span>⌕</span><input autoFocus value={commandQuery} onChange={event=>setCommandQuery(event.target.value)} placeholder="Tìm Workspace, module hoặc chức năng..."/><kbd>ESC</kbd></div><p>{commandQuery?"Kết quả":"Gần đây và chức năng được cấp quyền"}</p>{commandEntries.slice(0,12).map(entry=><button key={entry.item.key} onClick={()=>openItem(entry.item)}><span>{entry.item.icon}</span><div><strong>{entry.item.label}</strong><small>{entry.workspace.label} · {entry.item.ownerModule}</small></div><kbd>→</kbd></button>)}{commandEntries.length===0&&<div className="command-empty">Không tìm thấy chức năng phù hợp với quyền hiện tại.</div>}</section></div>}
+    <div className="main-area"><header className="topbar"><button className="mobile-menu" aria-label="Mở menu" onClick={()=>setSidebarOpen(true)}>☰</button><div className="breadcrumb"><span>{currentSection?.label||"Ứng dụng"}</span><b>/</b><strong>{currentLabel}</strong></div><button className="command-trigger" onClick={()=>setCommandOpen(true)}><span>⌕</span> Tìm module hoặc chức năng... <kbd>⌘ K</kbd></button><div className="top-actions"><button aria-label="Trợ giúp">?</button><button aria-label="Thông báo" className="notification-button" onClick={()=>{setNotificationsOpen(!notificationsOpen);setProfileOpen(false);}}>♢<i/></button><button className="profile-button" aria-expanded={profileOpen} onClick={()=>{setProfileOpen(!profileOpen);setNotificationsOpen(false);}}><span>{initials}</span><div><strong>{user?.displayName||"Người dùng"}</strong><small>{user?.role==="PLATFORM_ADMIN"?"Quản trị viên hệ thống":"Người dùng ứng dụng"}</small></div><b>⌄</b></button></div>
+      {notificationsOpen&&<div className="notification-popover"><div><strong>Thông báo</strong><button onClick={()=>setNotificationsOpen(false)}>×</button></div><article><span className="notice teal">✓</span><p><strong>Navigation Registry đã đồng bộ</strong><small>Menu được lọc theo module, quyền và nhiệm vụ hiện tại.</small></p><time>Live</time></article></div>}
+      {profileOpen&&<div className="profile-popover"><div className="profile-summary"><span>{initials}</span><p><strong>{user?.displayName||"Người dùng"}</strong><small>{user?.email}</small></p></div><div className="profile-role"><span>{user?.role==="PLATFORM_ADMIN"?"SYSTEM ADMINISTRATOR":"APPLICATION USER"}</span><em>Dedicated deployment</em></div>{settingsItem&&<button onClick={()=>{openItem(settingsItem);setProfileOpen(false);}}><span>⚙</span> Hồ sơ & bảo mật</button>}<button onClick={()=>setLogoutOpen(true)} className="logout-action"><span>↪</span> Đăng xuất</button></div>}
+    </header><main>{operationError&&<p className="auth-error" role="alert">{operationError}</p>}{view==="home"&&businessSection&&(data?<Overview onNavigate={navigate} data={data} displayName={user?.displayName}/>:<BusinessHome section={businessSection} onOpen={openItem}/>)}{view==="approvals"&&<ApprovalWorkspace/>}{data&&view==="modules"&&<Modules items={data.modules} onStatus={changeModuleStatus}/>} {data&&view==="resources"&&<Resources items={data.resources} onChanged={refresh}/>} {view==="users"&&<Users/>} {view==="organizations"&&<Organizations/>} {view==="access"&&<Access/>} {data&&view==="activity"&&<Activity items={data.activities}/>} {data&&view==="files"&&<Files items={data.files} storageGb={data.summary.storageGb} onUpload={uploadFile} onDownload={downloadFile}/>} {data&&view==="settings"&&<Settings values={data.settings} onSave={items=>mutate("/api/v1/control-plane/settings","PUT",items)}/>} {currentSection?.key==="system-administration"&&!data&&<div className="auth-loading" aria-label="Đang tải dữ liệu quản trị"><span/></div>}</main></div>
+    {commandOpen&&<div className="modal-backdrop" role="presentation" onMouseDown={()=>setCommandOpen(false)}><section className="command-modal" role="dialog" aria-modal="true" aria-label="Tìm chức năng" onMouseDown={event=>event.stopPropagation()}><div className="command-input"><span>⌕</span><input autoFocus value={commandQuery} onChange={event=>setCommandQuery(event.target.value)} placeholder="Tìm module hoặc chức năng..."/><kbd>ESC</kbd></div><p>{commandQuery?"Kết quả":"Gần đây và chức năng được cấp quyền"}</p>{commandEntries.slice(0,12).map(entry=><button key={entry.item.key} onClick={()=>openItem(entry.item)}><span>{entry.item.icon}</span><div><strong>{entry.item.label}</strong><small>{entry.section.label} · {entry.item.ownerModule}</small></div><kbd>→</kbd></button>)}{commandEntries.length===0&&<div className="command-empty">Không tìm thấy chức năng phù hợp với quyền hiện tại.</div>}</section></div>}
     {logoutOpen&&<div className="modal-backdrop logout-backdrop" role="presentation" onMouseDown={()=>setLogoutOpen(false)}><section className="logout-modal" role="dialog" aria-modal="true" aria-labelledby="logout-title" onMouseDown={event=>event.stopPropagation()}><span className="logout-icon">↪</span><h2 id="logout-title">Đăng xuất khỏi Core Platform?</h2><p>Phiên làm việc hiện tại sẽ kết thúc. Bạn cần xác thực lại để tiếp tục truy cập.</p><div><button className="secondary-button" onClick={()=>setLogoutOpen(false)}>Ở lại</button><button className="danger-button" onClick={signOut}>Đăng xuất</button></div></section></div>}
   </div>;
 }

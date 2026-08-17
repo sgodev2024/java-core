@@ -14,19 +14,22 @@ Phần quyết định kỹ thuật được cập nhật có chủ đích trong
 | Frontend | Next.js 16 App Router, React 19, output `standalone` |
 | Database | PostgreSQL, Flyway, migration user tách runtime user, tenant RLS |
 | Authentication | Internal account, opaque hashed session; MFA được điều khiển bằng feature flag |
-| Navigation | Workspace tách `business`/`core-admin`, menu do module đóng góp và backend lọc quyền |
+| Navigation | Application shell hợp nhất, section `business`/`system-administration`, menu động và cây tối đa ba cấp |
 | Packaging | Docker multi-stage; frontend build bằng Next.js chính thức |
 | Release | PR build/test, production release có backup, rehearsal và rollback container |
 
 ## 3. Thay đổi đang có hiệu lực
 
-### 3.1 Workspace và Navigation Registry động
+### 3.1 Application shell và Navigation Registry v1.1
 
-- Tách Workspace nghiệp vụ khỏi Workspace quản trị Core.
-- Module đăng ký workspace/menu qua `ModuleContributor`; frontend không duy trì danh sách menu cố định.
-- API `GET /api/v1/navigation/me` lọc theo module status, authority và permission.
-- API `PUT /api/v1/navigation/me/preferences` lưu yêu thích, gần đây và Workspace cuối cùng với tenant RLS.
-- Sidebar, Workspace switcher và Command Palette dùng cùng manifest đã được cấp quyền.
+- Bỏ Workspace switcher; dùng một cây điều hướng hợp nhất cho dedicated deployment.
+- Module đăng ký section/group/page qua `ModuleContributor`; frontend không duy trì danh sách module cố định.
+- Cây điều hướng bị giới hạn ở `Section → Group → Page`; registry fail startup nếu group lồng group.
+- API `GET /api/v1/navigation/me` trả `sections[]` đã lọc theo module status, authority và permission.
+- API `PUT /api/v1/navigation/me/preferences` chỉ lưu yêu thích và mục gần đây; trường Workspace cuối không còn trong contract.
+- Route chuyển từ hash sang `/home`, `/business/...`, `/administration/...`; Next.js có route tương ứng để direct load/refresh.
+- Section `system-administration` nằm cuối và chỉ hiện cho `ROLE_PLATFORM_ADMIN`; label người dùng là **Quản trị viên hệ thống**.
+- `NavigationItemDescriptor.visibilityMode=ASSIGNMENT` luôn qua exact-policy PDP, kể cả System Administrator; wildcard `*/*` không được xem là nhiệm vụ được giao (FE-BA-13).
 
 ### 3.2 Chuyển frontend sang Next.js chuẩn
 
@@ -46,6 +49,16 @@ Phần quyết định kỹ thuật được cập nhật có chủ đích trong
 - Enrollment, secret và recovery codes được giữ nguyên để có thể bật lại mà không migration dữ liệu.
 - Mọi lần bỏ qua MFA được audit bằng action `AUTH_MFA_SKIPPED_BY_CONFIGURATION`.
 - Bật lại: đổi `CORE_MFA_ENABLED=true` và restart backend; không cần sửa code hoặc database.
+
+### 3.4 Frontend quản trị dedicated deployment
+
+- Baseline nghiệp vụ là một khách hàng/một deployment/một database; không hiển thị tenant switcher hoặc SaaS Control Plane.
+- Trang Người dùng nối `GET/POST /api/v1/access/users`, hỗ trợ bật/tắt và đặt lại mật khẩu.
+- Trang Cơ cấu tổ chức nối `GET/POST /api/v1/access/organizations`.
+- Trang Vai trò & phân quyền nối `GET/POST /api/v1/access/roles` và `GET /api/v1/access/policies`.
+- Chỉ số hard-code ở khu vực truy cập và latency đã được thay bằng dữ liệu backend hoặc loại bỏ.
+- Trang chủ dùng nội dung theo ngữ cảnh: System Administrator thấy tổng quan vận hành; người dùng khác thấy module nghiệp vụ được cấp quyền.
+- Tài liệu BA chuẩn là `core-platform-ba-requirements-v1.1.md`; v1.0 chỉ còn giá trị lịch sử.
 
 ## 4. Quy tắc cập nhật tài liệu
 

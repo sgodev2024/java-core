@@ -16,12 +16,14 @@ public class ControlPlaneModule implements ModuleContributor {
 
   @Override public List<NavigationItemDescriptor> navigationItems() {
     return List.of(
-        new NavigationItemDescriptor("core.resources", "core-admin", "core.runtime", "Resources", "navigation.resources", "◇", "resources", "/#/core-admin/resources", 22, "ROLE_PLATFORM_ADMIN", "", "", List.of("resource", "dynamic", "schema")),
-        new NavigationItemDescriptor("core.security", "core-admin", "", "Bảo mật & truy cập", "navigation.security", "◎", "", "", 30, "ROLE_PLATFORM_ADMIN", "", "", List.of("security", "access")),
-        new NavigationItemDescriptor("core.access", "core-admin", "core.security", "Người dùng & phân quyền", "navigation.access", "◎", "access", "/#/core-admin/access", 31, "ROLE_PLATFORM_ADMIN", "", "", List.of("user", "role", "policy", "permission")),
-        new NavigationItemDescriptor("core.operations", "core-admin", "", "Vận hành", "navigation.operations", "↯", "", "", 40, "ROLE_PLATFORM_ADMIN", "", "", List.of("operations", "job", "event")),
-        new NavigationItemDescriptor("core.activity", "core-admin", "core.operations", "Events & Jobs", "navigation.activity", "↯", "activity", "/#/core-admin/activity", 41, "ROLE_PLATFORM_ADMIN", "", "", List.of("event", "outbox", "job", "schedule")),
-        new NavigationItemDescriptor("core.files", "core-admin", "core.operations", "Tệp tin", "navigation.files", "▱", "files", "/#/core-admin/files", 42, "ROLE_PLATFORM_ADMIN", "", "", List.of("file", "storage", "upload")),
-        new NavigationItemDescriptor("core.settings", "core-admin", "", "Cấu hình", "navigation.settings", "⚙", "settings", "/#/core-admin/settings", 90, "ROLE_PLATFORM_ADMIN", "", "", List.of("settings", "environment", "deployment")));
+        new NavigationItemDescriptor("core.resources", "system-administration", "core.runtime", "Tài nguyên mở rộng", "navigation.resources", "◇", "resources", "/administration/resources", 22, "ROLE_PLATFORM_ADMIN", "", "", List.of("resource", "dynamic", "schema")),
+        new NavigationItemDescriptor("core.security", "system-administration", "", "Tổ chức & truy cập", "navigation.security", "◎", "", "", 30, "ROLE_PLATFORM_ADMIN", "", "", List.of("security", "access", "organization")),
+        new NavigationItemDescriptor("core.users", "system-administration", "core.security", "Người dùng", "navigation.users", "◎", "users", "/administration/users", 31, "ROLE_PLATFORM_ADMIN", "", "", List.of("user", "account", "employee")),
+        new NavigationItemDescriptor("core.organizations", "system-administration", "core.security", "Cơ cấu tổ chức", "navigation.organizations", "⌘", "organizations", "/administration/organizations", 32, "ROLE_PLATFORM_ADMIN", "", "", List.of("organization", "department", "phòng ban")),
+        new NavigationItemDescriptor("core.access", "system-administration", "core.security", "Vai trò & phân quyền", "navigation.access", "⊙", "access", "/administration/access", 33, "ROLE_PLATFORM_ADMIN", "", "", List.of("role", "policy", "permission")),
+        new NavigationItemDescriptor("core.operations", "system-administration", "", "Vận hành", "navigation.operations", "↯", "", "", 40, "ROLE_PLATFORM_ADMIN", "", "", List.of("operations", "job", "event")),
+        new NavigationItemDescriptor("core.activity", "system-administration", "core.operations", "Events & Jobs", "navigation.activity", "↯", "activity", "/administration/activity", 41, "ROLE_PLATFORM_ADMIN", "", "", List.of("event", "outbox", "job", "schedule")),
+        new NavigationItemDescriptor("core.files", "system-administration", "core.operations", "Tệp tin", "navigation.files", "▱", "files", "/administration/files", 42, "ROLE_PLATFORM_ADMIN", "", "", List.of("file", "storage", "upload")),
+        new NavigationItemDescriptor("core.settings", "system-administration", "", "Cấu hình hệ thống", "navigation.settings", "⚙", "settings", "/administration/settings", 90, "ROLE_PLATFORM_ADMIN", "", "", List.of("settings", "environment", "deployment")));
   }
 }
