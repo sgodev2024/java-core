@@ -29,7 +29,11 @@ Phần quyết định kỹ thuật được cập nhật có chủ đích trong
 - API `PUT /api/v1/navigation/me/preferences` chỉ lưu yêu thích và mục gần đây; trường Workspace cuối không còn trong contract, cột legacy được reset chuỗi rỗng để tương thích schema.
 - Route chuyển từ hash sang `/home`, `/business/...`, `/administration/...`; Next.js có route tương ứng để direct load/refresh.
 - Section `system-administration` nằm cuối và chỉ hiện cho `ROLE_PLATFORM_ADMIN`; label người dùng là **Quản trị viên hệ thống**.
-- `NavigationItemDescriptor.visibilityMode=ASSIGNMENT` luôn qua exact-policy PDP, kể cả System Administrator; wildcard `*/*` không được xem là nhiệm vụ được giao (FE-BA-13).
+- `NavigationItemDescriptor.visibilityMode=ASSIGNMENT` luôn qua `NavigationVisibilityPolicy` và exact-policy PDP, kể cả System Administrator; wildcard `*/*` không được xem là nhiệm vụ được giao (FE-BA-13).
+- Core shell không hard-code `Công việc của tôi`. Chỉ module có view/API/PEP hộp việc thật mới đăng ký item `ASSIGNMENT`; tài khoản quản trị muốn xử lý nghiệp vụ phải có capability assignment chính xác.
+- Capability assignment giữ menu ổn định khi hộp việc đang rỗng; view hiển thị empty state, badge không tham gia authorization.
+- Frontend chuẩn hóa route không có trong manifest về page được phép, ngăn việc render trực tiếp một view đã bị backend loại khỏi navigation.
+- Kiểm thử tách riêng policy hiển thị menu, bao gồm negative test chứng minh System Administrator không bypass `ASSIGNMENT`; frontend có guard chống hard-code menu tác vụ cá nhân.
 
 ### 3.2 Chuyển frontend sang Next.js chuẩn
 

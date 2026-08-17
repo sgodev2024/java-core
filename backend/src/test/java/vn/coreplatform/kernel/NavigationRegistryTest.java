@@ -55,6 +55,11 @@ class NavigationRegistryTest {
     var assigned = new NavigationItemDescriptor("core.my-work", "business", "", "Công việc của tôi",
         "nav.myWork", "W", "my-work", "/business/my-work", 20, "", "WORK_ITEM", "READ_ASSIGNED", "ASSIGNMENT", List.of());
     assertThat(NavigationRegistry.validate(List.of(contributor("kernel", List.of(workspace("business")), List.of(assigned)))).items()).hasSize(1);
+
+    var assignmentGroup = new NavigationItemDescriptor("core.my-work-group", "business", "", "Việc cá nhân",
+        "nav.myWorkGroup", "W", "", "", 20, "", "WORK_ITEM", "READ_ASSIGNED", "ASSIGNMENT", List.of());
+    assertThatThrownBy(() -> NavigationRegistry.validate(List.of(contributor("kernel", List.of(workspace("business")), List.of(assignmentGroup)))))
+        .hasMessageContaining("ASSIGNMENT chỉ áp dụng cho PAGE");
   }
 
   private static ModuleContributor contributor(String key,List<NavigationWorkspaceDescriptor> workspaces,List<NavigationItemDescriptor> items) {

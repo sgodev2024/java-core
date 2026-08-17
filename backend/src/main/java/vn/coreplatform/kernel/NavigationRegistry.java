@@ -107,6 +107,8 @@ public class NavigationRegistry implements InitializingBean {
       throw new IllegalStateException("Navigation visibilityMode không hợp lệ: " + item.key());
     if (item.assignmentScoped() && item.permissionResource().isBlank())
       throw new IllegalStateException("Navigation ASSIGNMENT phải có permission resource/action: " + item.key());
+    if (item.group() && item.assignmentScoped())
+      throw new IllegalStateException("Navigation ASSIGNMENT chỉ áp dụng cho PAGE: " + item.key());
     if (!item.group()) {
       if (!NavigationItemDescriptor.VIEW_PATTERN.matcher(item.viewKey()).matches())
         throw new IllegalStateException("Navigation viewKey không hợp lệ: " + item.key());

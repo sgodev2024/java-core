@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { cp, mkdir } from "node:fs/promises";
+import { cp, mkdir, readFile } from "node:fs/promises";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
@@ -45,4 +45,10 @@ test("control plane console server-renders the login shell", async () => {
   } finally {
     server.kill();
   }
+});
+
+test("personal task navigation is not hard-coded in the application shell", async () => {
+  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  assert.doesNotMatch(source, /Công việc của tôi/i);
+  assert.match(source, /api\/v1\/navigation\/me/);
 });

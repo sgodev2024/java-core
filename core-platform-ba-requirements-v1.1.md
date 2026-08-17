@@ -3,9 +3,10 @@
 | Thuộc tính | Giá trị |
 |---|---|
 | Mã tài liệu | `CP-BA-001` |
-| Phiên bản | `1.1.0` |
+| Phiên bản | `1.1.1` |
 | Trạng thái | Approved |
 | Ngày lập | 2026-08-17 |
+| Ngày cập nhật | 2026-08-17 |
 | Sản phẩm | Java Core Platform |
 | Giai đoạn | 1 — Business Analysis + Frontend Baseline |
 | Baseline thay thế | `core-platform-ba-requirements-v1.0.md` |
@@ -564,7 +565,7 @@ Tài khoản có quyền cao nhất được hiển thị bằng thuật ngữ *
 | FE-BA-10 | Điều hướng dùng URL chuẩn | Route dùng `/home`, `/business/...`, `/administration/...`; hỗ trợ truy cập trực tiếp, refresh và lịch sử trình duyệt. |
 | FE-BA-11 | Quản trị tổ chức và truy cập là capability của deployment | Frontend có màn hình Người dùng, Cơ cấu tổ chức, Vai trò & phân quyền nối API thật; không dùng số liệu mẫu cố định làm dữ liệu vận hành. |
 | FE-BA-12 | Trải nghiệm phải theo quyền và đáp ứng thiết bị | Sidebar, tìm kiếm lệnh, yêu thích, trạng thái rỗng/lỗi/tải và mobile layout dùng cùng manifest đã được backend lọc. |
-| FE-BA-13 | Menu tác vụ cá nhân hiển thị theo khả năng và nhiệm vụ được giao | Không hiển thị `Công việc của tôi` mặc định chỉ dựa trên quyền System Administrator. Item loại `ASSIGNMENT` luôn phải qua Permission Decision Point, kể cả administrator. |
+| FE-BA-13 | Menu tác vụ cá nhân hiển thị theo capability tham gia xử lý nhiệm vụ được giao | Core không đăng ký sẵn `Công việc của tôi`. Module có hộp việc thật mới được đăng ký item `ASSIGNMENT`; item này luôn qua Permission Decision Point bằng policy đúng resource/action, kể cả System Administrator. Quyền wildcard quản trị không làm phát sinh menu tác vụ cá nhân. |
 
 ### 24.3 Kiến trúc thông tin được phê duyệt
 
@@ -612,6 +613,18 @@ Không được tạo một Workspace riêng cho từng module. Khi số module 
 
 Menu chỉ là cơ chế khám phá. Việc không hiển thị menu không thay thế authorization tại API. Mọi endpoint nhạy cảm tiếp tục fail closed.
 
+### 24.4.1 Quy tắc nghiệp vụ chi tiết cho tác vụ cá nhân
+
+| ID | Quy tắc đã duyệt |
+|---|---|
+| FE-BR-013-01 | Application shell và Core không hard-code `Công việc của tôi`; menu này thuộc module nghiệp vụ có capability hộp việc. |
+| FE-BR-013-02 | Module chỉ đăng ký item `ASSIGNMENT` sau khi có đủ view, route, API lấy nhiệm vụ được giao và cặp permission resource/action tương ứng. |
+| FE-BR-013-03 | Tài khoản chỉ nhận item khi module đang bật, thỏa authority của section/item và có policy chính xác cho capability assignment. `ROLE_PLATFORM_ADMIN` hoặc policy wildcard `*/*` không được tính là nhiệm vụ được giao. |
+| FE-BR-013-04 | System Administrator vẫn có thể thấy hộp việc khi được gán thêm capability assignment chính xác để trực tiếp tham gia quy trình nghiệp vụ. |
+| FE-BR-013-05 | Số nhiệm vụ đang mở bằng `0` không làm menu biến mất sau khi tài khoản đã có capability; view hiển thị empty state. Cách này giữ điều hướng ổn định và cho phép xem lịch sử/bộ lọc. Badge số lượng là dữ liệu nghiệp vụ, không phải quyết định authorization. |
+| FE-BR-013-06 | API hộp việc phải lọc theo account/organization assignment và kiểm tra permission độc lập. Ẩn menu, badge hoặc kiểm tra tại frontend không thay thế PEP ở backend. |
+| FE-BR-013-07 | Truy cập trực tiếp một route không có trong navigation manifest hiệu lực phải được frontend đưa về page hợp lệ đầu tiên; API đích vẫn trả `403` nếu bị gọi trực tiếp. |
+
 ### 24.5 Yêu cầu chức năng frontend v1.1
 
 | ID | Yêu cầu |
@@ -654,8 +667,9 @@ Quy tắc:
 - item `GROUP` không có route/view; item `PAGE` phải có route/view;
 - group không được chứa group;
 - item `ACCESS` dùng quyền truy cập chức năng thông thường;
-- item `ASSIGNMENT` bắt buộc khai báo `permissionResource` và `permissionAction`;
+- chỉ item `PAGE` được dùng `ASSIGNMENT`, đồng thời bắt buộc khai báo `permissionResource` và `permissionAction`;
 - System Administrator không bypass đánh giá permission đối với item `ASSIGNMENT`; policy wildcard `*/*` không được xem là nhiệm vụ được giao;
+- item `ASSIGNMENT` không được đăng ký nếu module chưa cung cấp view, API và authorization cho hộp việc thực;
 - backend loại item của module bị tắt và group rỗng trước khi trả response;
 - frontend không tự suy diễn hoặc mở rộng quyền từ role code.
 
@@ -666,6 +680,8 @@ Quy tắc:
 - [x] Sidebar được dựng từ Navigation Registry động.
 - [x] Quản trị hệ thống nằm cuối menu và không xuất hiện với người dùng thường.
 - [x] Menu `Công việc của tôi` không xuất hiện chỉ vì tài khoản là System Administrator.
+- [x] Application shell không hard-code menu tác vụ cá nhân; quyết định hiển thị nằm ở manifest đã lọc của backend.
+- [x] Route không có trong manifest hiệu lực được đưa về page được phép thay vì render view ẩn.
 - [x] Registry từ chối cây menu sâu hơn Section → Group → Page.
 - [x] Route chuẩn hỗ trợ direct navigation và refresh.
 - [x] Người dùng, cơ cấu tổ chức, vai trò và policy dùng API thật.
@@ -681,7 +697,7 @@ Quy tắc:
 | FE-BA-01, 05–08 | Navigation Registry + application shell | Registry/API/frontend tests |
 | FE-BA-02–04 | Security filter + terminology + dedicated UI | Role matrix và negative test |
 | FE-BA-09–12 | Next.js App Router + responsive shell | Build, direct-route và browser acceptance |
-| FE-BA-13 | `visibilityMode=ASSIGNMENT` + PDP | Registry validation và permission negative test |
+| FE-BA-13, FE-BR-013-01–07 | `visibilityMode=ASSIGNMENT` + `NavigationVisibilityPolicy` + PDP + route guard | Registry validation, admin-bypass negative test, frontend no-hardcode test và direct-route fallback |
 | FE-FR-004–005 | Access Management API + admin pages | Integration test và Production smoke test |
 
 ## 25. Phê duyệt thay đổi v1.1
@@ -691,4 +707,3 @@ Quy tắc:
 | Product Owner / Project Sponsor | Approved FE-BA-01 đến FE-BA-13 | 2026-08-17 |
 | Technical Lead | Pending release verification | |
 | Security Approver | Pending release verification | |
-

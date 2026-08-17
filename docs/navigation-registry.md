@@ -54,7 +54,9 @@ Với namespace `module.*`, registry bắt buộc module sở hữu item phải 
 | `ACCESS` | Page chức năng/quản trị thông thường | Có, nếu authority section/item cho phép |
 | `ASSIGNMENT` | Hộp việc, tác vụ cá nhân, hàng đợi được giao | Không |
 
-`ASSIGNMENT` bắt buộc có đủ `permissionResource` và `permissionAction`. Đây là triển khai FE-BA-13: vai trò System Administrator không tự làm xuất hiện “Công việc của tôi”. PDP dùng exact-policy gate; wildcard `*/*` của administrator không được tính là nhiệm vụ được giao. Chỉ policy đúng resource/action mới làm page này xuất hiện.
+`ASSIGNMENT` chỉ hợp lệ với `PAGE` và bắt buộc có đủ `permissionResource` và `permissionAction`. Đây là triển khai FE-BA-13: vai trò System Administrator không tự làm xuất hiện “Công việc của tôi”. `NavigationVisibilityPolicy` buộc item này đi qua exact-policy gate; wildcard `*/*` của administrator không được tính là nhiệm vụ được giao. Chỉ policy đúng resource/action mới làm page này xuất hiện.
+
+Core shell không đăng ký hoặc hard-code task inbox. Module nghiệp vụ chỉ được đóng góp item `ASSIGNMENT` khi đã cung cấp đủ view, route, API truy vấn theo account/organization assignment và PEP tương ứng. Nếu tài khoản đã có capability nhưng hiện có `0` tác vụ, menu vẫn ổn định và view hiển thị empty state; số lượng/badge không được dùng như authorization. System Administrator muốn trực tiếp xử lý nghiệp vụ phải được gán capability assignment chính xác như người dùng khác.
 
 ## Ví dụ page module
 
@@ -97,7 +99,7 @@ new NavigationItemDescriptor(
     List.of("tác vụ", "được giao"));
 ```
 
-Không đăng ký task inbox cho đến khi module có endpoint và permission kiểm chứng nhiệm vụ thực tế.
+Không đăng ký task inbox cho đến khi module có endpoint, view và permission kiểm chứng nhiệm vụ thực tế. Ví dụ chỉ mô tả contract mở rộng; Core hiện tại không tự thêm `Công việc của tôi` vào manifest.
 
 ## API contract
 
@@ -156,9 +158,11 @@ Backend loại key không còn hiển thị, giới hạn 20 favorite và 10 rec
 - Navigation permission dùng cùng `PermissionService` với API nghiệp vụ và fail closed.
 - `ACCESS` có thể dùng admin bypass khi dựng menu; endpoint đích vẫn tự kiểm tra quyền.
 - `ASSIGNMENT` không dùng admin bypass và không nhận wildcard `*/*` khi dựng menu.
+- Số lượng nhiệm vụ là dữ liệu hiển thị; không dùng số lượng bằng `0` để thu hồi capability hoặc làm menu thay đổi liên tục.
 - Module `DISABLED` không đóng góp menu.
 - Frontend không có fallback menu hard-code và không suy diễn quyền từ role code.
 - Page chỉ được mở nếu xuất hiện trong manifest hiệu lực của phiên hiện tại.
+- Route không khớp page nào trong manifest được thay thế bằng route page hợp lệ đầu tiên; endpoint đích vẫn tự authorize.
 
 ## Checklist khi thêm module
 

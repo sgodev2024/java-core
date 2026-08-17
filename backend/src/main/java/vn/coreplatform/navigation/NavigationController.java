@@ -23,14 +23,17 @@ import vn.coreplatform.permission.PermissionService;
 public class NavigationController {
   private final NavigationRegistry registry;
   private final PermissionService permissions;
+  private final NavigationVisibilityPolicy visibility;
   private final JdbcTemplate jdbc;
   private final ObjectMapper json;
   private final AuditService audits;
 
-  public NavigationController(NavigationRegistry registry, PermissionService permissions, JdbcTemplate jdbc,
+  public NavigationController(NavigationRegistry registry, PermissionService permissions,
+                              NavigationVisibilityPolicy visibility, JdbcTemplate jdbc,
                               ObjectMapper json, AuditService audits) {
     this.registry = registry;
     this.permissions = permissions;
+    this.visibility = visibility;
     this.jdbc = jdbc;
     this.json = json;
     this.audits = audits;
@@ -106,12 +109,7 @@ public class NavigationController {
         groups.put(descriptor.key(), item);
         continue;
       }
-      // FE-BA-13: trang tác vụ cá nhân không được hiện chỉ vì tài khoản là System Administrator.
-      // ASSIGNMENT luôn đi qua PDP; ACCESS giữ admin bypass cho chức năng quản trị hệ thống.
-      if (descriptor.assignmentScoped()
-          && !permissions.scopeExplicit(auth, descriptor.permissionResource(), descriptor.permissionAction()).allowed()) continue;
-      if (!descriptor.assignmentScoped() && !descriptor.permissionResource().isBlank() && !administrator
-          && !permissions.scope(auth, descriptor.permissionResource(), descriptor.permissionAction()).allowed()) continue;
+      if (!visibility.canRender(auth, descriptor, administrator)) continue;
       accessiblePages.put(descriptor.key(), item);
     }
 

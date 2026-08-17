@@ -381,7 +381,7 @@ export default function Home() {
 
   useEffect(()=>{const existing=storedToken();if(!existing){setAuthReady(true);return;}fetch(`${API_URL}/api/v1/auth/me`,{headers:{Authorization:`Bearer ${existing}`}}).then(async response=>{if(!response.ok)throw new Error();setUser(await response.json());setAuthenticated(true);setApiOnline(true);}).catch(()=>{window.localStorage.removeItem("core-access-token");window.sessionStorage.removeItem("core-access-token");}).finally(()=>setAuthReady(true));},[]);
 
-  const selectRoute=(model:NavigationModel)=>{const pages=model.sections.flatMap(section=>section.items.filter(item=>item.type==="PAGE").map(item=>({section,item})));const route=window.location.pathname;const selected=pages.find(entry=>entry.item.route===route)||pages.find(entry=>entry.item.key==="core.home")||pages[0];if(selected){setView(selected.item.viewKey as View);setExpandedGroup(selected.item.parentKey);}};
+  const selectRoute=(model:NavigationModel)=>{const pages=model.sections.flatMap(section=>section.items.filter(item=>item.type==="PAGE").map(item=>({section,item})));const route=window.location.pathname;const selected=pages.find(entry=>entry.item.route===route)||pages.find(entry=>entry.item.key==="core.home")||pages[0];if(selected){setView(selected.item.viewKey as View);setExpandedGroup(selected.item.parentKey);if(route!==selected.item.route)window.history.replaceState(null,"",selected.item.route);}};
   const loadNavigation=async()=>{const model=await apiRequest<NavigationModel>("/api/v1/navigation/me");setNavigation(model);selectRoute(model);return model;};
   const refresh=async()=>setData(await apiRequest<BootstrapData>("/api/v1/control-plane/bootstrap"));
 
