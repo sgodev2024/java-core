@@ -71,10 +71,11 @@ Phần quyết định kỹ thuật được cập nhật có chủ đích trong
 ## 5. Lịch sử thay đổi tự động
 
 <!-- AUTO-GENERATED:START -->
-> Sinh tự động từ Git. Mốc mã gần nhất: `5f298fa92011c27a9c847217e94428cea92e5e89` (2026-08-17). Không sửa trực tiếp phần này.
+> Sinh tự động từ Git. Mốc mã gần nhất: `018c886578056beaf4a7c44b050aa21326f3b356` (2026-08-17). Không sửa trực tiếp phần này.
 
 | Ngày | Commit | Nội dung | Tác giả | Số file |
 |---|---|---|---|---:|
+| 2026-08-17 | [`018c886`](https://github.com/sgodev2024/java-core/commit/018c886578056beaf4a7c44b050aa21326f3b356) | Fix navigation module status query compilation | SGO Development | 1 |
 | 2026-08-17 | [`5f298fa`](https://github.com/sgodev2024/java-core/commit/5f298fa92011c27a9c847217e94428cea92e5e89) | Unify navigation shell and implement FE-BA v1.1 | SGO Development | 21 |
 | 2026-08-17 | [`e63edc0`](https://github.com/sgodev2024/java-core/commit/e63edc07782810aac19415d0a0900aa1140ace4a) | Migrate frontend to Next.js and add MFA feature flag | SGO Development | 35 |
 | 2026-08-17 | [`89e36e6`](https://github.com/sgodev2024/java-core/commit/89e36e68ab5628d63bc7fafe888b48c5d120937d) | Add workspace-based dynamic navigation registry | SGO Development | 15 |
@@ -105,6 +106,14 @@ Phần quyết định kỹ thuật được cập nhật có chủ đích trong
 | 2026-08-15 | [`295b0e6`](https://github.com/sgodev2024/java-core/commit/295b0e6d6b200c9cd17cfe23d11683f8d04d19e8) | Initialize Java Core Platform | SGO Development | 57 |
 
 ## Chi tiết file theo commit
+
+### 2026-08-17 — Fix navigation module status query compilation
+
+- Commit: [`018c886578056beaf4a7c44b050aa21326f3b356`](https://github.com/sgodev2024/java-core/commit/018c886578056beaf4a7c44b050aa21326f3b356)
+- Tác giả: SGO Development
+- Phạm vi file:
+
+- `M` `backend/src/main/java/vn/coreplatform/navigation/NavigationController.java`
 
 ### 2026-08-17 — Unify navigation shell and implement FE-BA v1.1
 
