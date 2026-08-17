@@ -79,10 +79,11 @@ Phần quyết định kỹ thuật được cập nhật có chủ đích trong
 ## 5. Lịch sử thay đổi tự động
 
 <!-- AUTO-GENERATED:START -->
-> Sinh tự động từ Git. Mốc mã gần nhất: `499061418cabf6557bc3ecc524b90cf8bc31c6cb` (2026-08-17). Không sửa trực tiếp phần này.
+> Sinh tự động từ Git. Mốc mã gần nhất: `5c1c38a1e777a9a874fb0e0adc589077d864469e` (2026-08-17). Không sửa trực tiếp phần này.
 
 | Ngày | Commit | Nội dung | Tác giả | Số file |
 |---|---|---|---|---:|
+| 2026-08-17 | [`5c1c38a`](https://github.com/sgodev2024/java-core/commit/5c1c38a1e777a9a874fb0e0adc589077d864469e) | Fix bootstrap initializer test environment | SGO Development | 1 |
 | 2026-08-17 | [`4990614`](https://github.com/sgodev2024/java-core/commit/499061418cabf6557bc3ecc524b90cf8bc31c6cb) | Align ESG frontend with production APIs | SGO Development | 31 |
 | 2026-08-17 | [`0f5ec51`](https://github.com/sgodev2024/java-core/commit/0f5ec51cac77974ff5f37741cc894faa07edcea9) | Isolate approval sample behind demo and test profiles | SGO Development | 22 |
 | 2026-08-17 | [`ae38ab7`](https://github.com/sgodev2024/java-core/commit/ae38ab7cca381cb1bf9630da7ed2ec106915af9d) | Remove deployment summary strip from home page | SGO Development | 5 |
@@ -119,6 +120,14 @@ Phần quyết định kỹ thuật được cập nhật có chủ đích trong
 | 2026-08-15 | [`295b0e6`](https://github.com/sgodev2024/java-core/commit/295b0e6d6b200c9cd17cfe23d11683f8d04d19e8) | Initialize Java Core Platform | SGO Development | 57 |
 
 ## Chi tiết file theo commit
+
+### 2026-08-17 — Fix bootstrap initializer test environment
+
+- Commit: [`5c1c38a1e777a9a874fb0e0adc589077d864469e`](https://github.com/sgodev2024/java-core/commit/5c1c38a1e777a9a874fb0e0adc589077d864469e)
+- Tác giả: SGO Development
+- Phạm vi file:
+
+- `M` `backend/src/test/java/vn/coreplatform/identity/BootstrapAdminInitializerTest.java`
 
 ### 2026-08-17 — Align ESG frontend with production APIs
 
