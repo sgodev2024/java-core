@@ -13,6 +13,7 @@ Java Core Platform is a business-neutral modular application foundation for buil
 - `core-platform-runtime-architecture-v1.0.md`, `core-platform-database-architecture-v1.0.md` — approved runtime and database architecture
 - `docs/navigation-registry.md` — unified section/menu manifest, assignment visibility, security and extension contract
 - `docs/technical-change-register.md` — sổ thay đổi kỹ thuật và lịch sử tự động từ Git
+- `docs/core-to-project-implementation-standard-v1.0.md` — tiêu chuẩn tách Core, khởi tạo Git dự án, phát triển, release và bàn giao full source
 - `templates/domain-module/` và `scripts/new-domain-module.ps1` — template tạo module code-first tách khỏi package Core
 
 ## Local start
