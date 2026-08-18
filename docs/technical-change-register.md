@@ -79,10 +79,12 @@ Phần quyết định kỹ thuật được cập nhật có chủ đích trong
 ## 5. Lịch sử thay đổi tự động
 
 <!-- AUTO-GENERATED:START -->
-> Sinh tự động từ Git. Mốc mã gần nhất: `5c51d9b2d93eae37a0a5c0f1d49e17339065165e` (2026-08-17). Không sửa trực tiếp phần này.
+> Sinh tự động từ Git. Mốc mã gần nhất: `7300b4d70b4db30a1f1eb9b82befcd01b5c686d5` (2026-08-18). Không sửa trực tiếp phần này.
 
 | Ngày | Commit | Nội dung | Tác giả | Số file |
 |---|---|---|---|---:|
+| 2026-08-18 | [`7300b4d`](https://github.com/sgodev2024/java-core/commit/7300b4d70b4db30a1f1eb9b82befcd01b5c686d5) | Keep business project repository independent | SGO Development | 1 |
+| 2026-08-18 | [`682d300`](https://github.com/sgodev2024/java-core/commit/682d30079ccb5f52133bc374223556955f4004c2) | Add project-ready domain module contracts | SGO Development | 17 |
 | 2026-08-17 | [`5c51d9b`](https://github.com/sgodev2024/java-core/commit/5c51d9b2d93eae37a0a5c0f1d49e17339065165e) | Normalize legacy core module statuses | SGO Development | 4 |
 | 2026-08-17 | [`776e86b`](https://github.com/sgodev2024/java-core/commit/776e86b888e25968029c741d02541baee99366b0) | Align migration concurrency test with V18 | SGO Development | 1 |
 | 2026-08-17 | [`5c1c38a`](https://github.com/sgodev2024/java-core/commit/5c1c38a1e777a9a874fb0e0adc589077d864469e) | Fix bootstrap initializer test environment | SGO Development | 1 |
@@ -122,6 +124,38 @@ Phần quyết định kỹ thuật được cập nhật có chủ đích trong
 | 2026-08-15 | [`295b0e6`](https://github.com/sgodev2024/java-core/commit/295b0e6d6b200c9cd17cfe23d11683f8d04d19e8) | Initialize Java Core Platform | SGO Development | 57 |
 
 ## Chi tiết file theo commit
+
+### 2026-08-18 — Keep business project repository independent
+
+- Commit: [`7300b4d70b4db30a1f1eb9b82befcd01b5c686d5`](https://github.com/sgodev2024/java-core/commit/7300b4d70b4db30a1f1eb9b82befcd01b5c686d5)
+- Tác giả: SGO Development
+- Phạm vi file:
+
+- `M` `.gitignore`
+
+### 2026-08-18 — Add project-ready domain module contracts
+
+- Commit: [`682d30079ccb5f52133bc374223556955f4004c2`](https://github.com/sgodev2024/java-core/commit/682d30079ccb5f52133bc374223556955f4004c2)
+- Tác giả: SGO Development
+- Phạm vi file:
+
+- `M` `README.md`
+- `A` `backend/src/main/java/vn/coreplatform/kernel/CoreCompatibility.java`
+- `A` `backend/src/main/java/vn/coreplatform/kernel/DomainResourceAdapter.java`
+- `A` `backend/src/main/java/vn/coreplatform/kernel/DomainResourceAdapterRegistry.java`
+- `M` `backend/src/main/java/vn/coreplatform/kernel/ModuleDescriptor.java`
+- `M` `backend/src/main/java/vn/coreplatform/kernel/ModuleRegistry.java`
+- `A` `backend/src/test/java/vn/coreplatform/kernel/DomainResourceAdapterRegistryTest.java`
+- `M` `backend/src/test/java/vn/coreplatform/kernel/ModuleRegistryTest.java`
+- `M` `docs/backend-frontend-gap-analysis-v1.0.md`
+- `M` `docs/decisions.md`
+- `A` `scripts/new-domain-module.ps1`
+- `A` `templates/domain-module/README.md`
+- `A` `templates/domain-module/backend/DomainAdapter.java.template`
+- `A` `templates/domain-module/backend/DomainModule.java.template`
+- `A` `templates/domain-module/backend/V__MIGRATION_VERSION____MODULE_KEY_SQL____baseline.sql.template`
+- `A` `templates/domain-module/frontend/page.tsx.template`
+- `A` `templates/domain-module/module-manifest.yaml.template`
 
 ### 2026-08-17 — Normalize legacy core module statuses
 
