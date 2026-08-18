@@ -79,10 +79,11 @@ Phần quyết định kỹ thuật được cập nhật có chủ đích trong
 ## 5. Lịch sử thay đổi tự động
 
 <!-- AUTO-GENERATED:START -->
-> Sinh tự động từ Git. Mốc mã gần nhất: `7300b4d70b4db30a1f1eb9b82befcd01b5c686d5` (2026-08-18). Không sửa trực tiếp phần này.
+> Sinh tự động từ Git. Mốc mã gần nhất: `591c6e350beb23af4da76fa440629d1f4f4e449f` (2026-08-18). Không sửa trực tiếp phần này.
 
 | Ngày | Commit | Nội dung | Tác giả | Số file |
 |---|---|---|---|---:|
+| 2026-08-18 | [`591c6e3`](https://github.com/sgodev2024/java-core/commit/591c6e350beb23af4da76fa440629d1f4f4e449f) | Document Core-to-project delivery standard | SGO Development | 2 |
 | 2026-08-18 | [`7300b4d`](https://github.com/sgodev2024/java-core/commit/7300b4d70b4db30a1f1eb9b82befcd01b5c686d5) | Keep business project repository independent | SGO Development | 1 |
 | 2026-08-18 | [`682d300`](https://github.com/sgodev2024/java-core/commit/682d30079ccb5f52133bc374223556955f4004c2) | Add project-ready domain module contracts | SGO Development | 17 |
 | 2026-08-17 | [`5c51d9b`](https://github.com/sgodev2024/java-core/commit/5c51d9b2d93eae37a0a5c0f1d49e17339065165e) | Normalize legacy core module statuses | SGO Development | 4 |
@@ -124,6 +125,15 @@ Phần quyết định kỹ thuật được cập nhật có chủ đích trong
 | 2026-08-15 | [`295b0e6`](https://github.com/sgodev2024/java-core/commit/295b0e6d6b200c9cd17cfe23d11683f8d04d19e8) | Initialize Java Core Platform | SGO Development | 57 |
 
 ## Chi tiết file theo commit
+
+### 2026-08-18 — Document Core-to-project delivery standard
+
+- Commit: [`591c6e350beb23af4da76fa440629d1f4f4e449f`](https://github.com/sgodev2024/java-core/commit/591c6e350beb23af4da76fa440629d1f4f4e449f)
+- Tác giả: SGO Development
+- Phạm vi file:
+
+- `M` `README.md`
+- `A` `docs/core-to-project-implementation-standard-v1.0.md`
 
 ### 2026-08-18 — Keep business project repository independent
 
