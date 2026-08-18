@@ -61,4 +61,14 @@ class ModuleRegistryTest {
     assertThatThrownBy(() -> ModuleRegistry.validate(List.of(new ModuleDescriptor("Bad_Key", "Kernel", "1.0.0", List.of(), List.of("a"), "d"))))
         .isInstanceOf(IllegalStateException.class).hasMessageContaining("Module key");
   }
+
+  @Test
+  void incompatibleOrMalformedCoreRangeFailsStartup() {
+    assertThatThrownBy(() -> ModuleRegistry.validate(List.of(new ModuleDescriptor(
+        "future-module", "Future", "1.0.0", List.of(), List.of("future"), "d", ">=2.0.0"))))
+        .isInstanceOf(IllegalStateException.class).hasMessageContaining("không tương thích Core");
+    assertThatThrownBy(() -> ModuleRegistry.validate(List.of(new ModuleDescriptor(
+        "bad-range", "Bad", "1.0.0", List.of(), List.of("bad"), "d", "~1.1"))))
+        .isInstanceOf(IllegalStateException.class).hasMessageContaining("coreVersionRange");
+  }
 }

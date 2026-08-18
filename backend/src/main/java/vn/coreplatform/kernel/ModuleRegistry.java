@@ -43,6 +43,12 @@ public class ModuleRegistry implements InitializingBean, ApplicationRunner {
         throw new IllegalStateException("Module key không hợp lệ: '" + descriptor.key() + "'");
       if (!ModuleDescriptor.VERSION_PATTERN.matcher(descriptor.version()).matches())
         throw new IllegalStateException("Module version không tuân semver: " + descriptor.key() + "@" + descriptor.version());
+      try {
+        if (!CoreCompatibility.supportsCurrent(descriptor.coreVersionRange()))
+          throw new IllegalStateException("Module " + descriptor.key() + " không tương thích Core " + CoreCompatibility.CURRENT_API_VERSION + " (requires " + descriptor.coreVersionRange() + ")");
+      } catch (IllegalArgumentException invalidRange) {
+        throw new IllegalStateException("Module " + descriptor.key() + " khai báo coreVersionRange không hợp lệ: " + descriptor.coreVersionRange(), invalidRange);
+      }
       if (byKey.put(descriptor.key(), descriptor) != null)
         throw new IllegalStateException("Duplicate module key: " + descriptor.key());
       for (var capability : descriptor.capabilities()) {

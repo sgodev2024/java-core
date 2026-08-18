@@ -50,14 +50,14 @@ Các API này có thể kiểm thử bằng integration test hoặc Swagger tron
 
 | BA capability | Hiện trạng | Khoảng trống cần triển khai |
 |---|---|---|
-| CAP-003 Domain Resource Adapter | Có sample code-first Approval và Resource Registry | Chưa có adapter SPI tổng quát và history contract thống nhất cho domain module thật |
-| CAP-009 Resource history | Dynamic Resource có revision | Chưa có contract history chung cho mọi Domain Resource |
+| CAP-003 Domain Resource Adapter | Có `DomainResourceAdapter` + registry fail-fast, read/history contract và module template | Domain module thật phải cung cấp adapter/repository riêng; Core không generic hóa command/invariant |
+| CAP-009 Resource history | Dynamic Resource có revision; Domain Resource có public history SPI | Từng domain module phải triển khai persistence/history và retention cụ thể |
 | CAP-010 Hook/extension system | Có `ModuleContributor`, event handler và job handler | Chưa có lifecycle hook registry với thứ tự, timeout, isolation và failure policy |
 | CAP-015 Search cơ bản | Có search theo dynamic resource và file | Chưa có search API liên resource/module với permission filter thống nhất |
 | CAP-016 Localization/i18n | Descriptor có `labelKey` | Chưa có message catalog, locale negotiation và API tải bản dịch |
 | CAP-017 Naming/numbering series | Chưa có | Cần sequence definition, scope tenant/module, concurrency và format policy |
 | CAP-018 Archive policy | Dynamic record và file có soft delete | Chưa có retention/archive contract dùng chung cho domain module |
-| CAP-019 Module compatibility | Có dependency graph, semver format và cycle validation | Chưa có version range, compatibility matrix, install/upgrade/rollback API |
+| CAP-019 Module compatibility | Có dependency graph, semver, cycle validation và runtime `coreVersionRange` gate | Chưa có compatibility matrix, install/upgrade/rollback API |
 | DEP-002 Kubernetes/Helm | Có OCI image và Docker Compose | Chưa có Helm chart/HA manifest; triển khai khi chọn service tier HA |
 | Storage adapter | Local filesystem có checksum/reconcile | Chưa có adapter S3-compatible và migration giữa storage backend |
 
