@@ -30,6 +30,8 @@ public class AuthController {
   record ConfirmRequest(@Pattern(regexp="\\d{6}") String code){}
   record EnrollmentResponse(String secret,String otpauthUri){}
   record ConfirmResponse(List<String> recoveryCodes){}
+  record MfaConfigRequest(boolean enabled, boolean requireAdmin, boolean allowBootstrap){}
+  record MfaConfigResponse(boolean enabled, boolean requireAdmin, boolean allowBootstrap){}
 
   @PostMapping("/login")
   LoginResponse login(@Valid @RequestBody LoginRequest input){
@@ -55,12 +57,15 @@ public class AuthController {
     // E3-S02: hash cũ (bcrypt) được nâng cấp lên Argon2id ngay khi đăng nhập thành công
     if(!"{argon2}".regionMatches(true,0,(String)account.get("hash"),0,7))
       jdbc.update("update identity.account set password_hash=?,password_algo='ARGON2ID',password_changed_at=now() where id=?",encoder.encode(input.password()),id);
-    if(!mfaEnabled){
+    var mfaEnabledRuntime=getConfigBoolean("mfa.enabled",mfaEnabled);
+    var requireAdminMfaRuntime=getConfigBoolean("mfa.require_admin",requireAdminMfa);
+    var allowBootstrapMfaRuntime=getConfigBoolean("mfa.allow_bootstrap",allowBootstrapMfa);
+    if(!mfaEnabledRuntime){
       var user=new UserResponse(id,(String)account.get("email"),(String)account.get("displayName"),(String)account.get("role"));
       audit(id,user.email(),"AUTH_MFA_SKIPPED_BY_CONFIGURATION","SUCCESS");
       return new LoginResponse(null,false,null,issueSession(user,input.remember(),null));
     }
-    if(requireAdminMfa&&"PLATFORM_ADMIN".equals(account.get("role"))&&adminEnrollmentMissing(id)&&!allowBootstrapMfa)
+    if(requireAdminMfaRuntime&&"PLATFORM_ADMIN".equals(account.get("role"))&&adminEnrollmentMissing(id)&&!allowBootstrapMfaRuntime)
       throw new ApiProblem(HttpStatus.FORBIDDEN,"MFA_ENROLLMENT_REQUIRED","Administrator phải kích hoạt MFA trước khi đăng nhập; liên hệ quản trị để cấp recovery");
     var challenge=UUID.randomUUID(); jdbc.update("insert into identity.mfa_challenge(id,account_id,expires_at) values(?,?,now()+interval '5 minutes')",challenge,id);
     audit(id,input.email(),"AUTH_LOGIN_CHALLENGE","SUCCESS"); return new LoginResponse(challenge.toString(),true,"Authenticator app",null);
@@ -75,13 +80,16 @@ public class AuthController {
     var enrollment=jdbc.query("select secret_base32,confirmed_at,recovery_code_hashes from identity.mfa_enrollment where account_id=? and confirmed_at is not null",
       (rs,n)->Map.of("secret",rs.getString("secret_base32"),"recovery",(String[])rs.getArray("recovery_code_hashes").getArray()),user.id());
     boolean passed;
+
+    var allowBootstrapMfaRuntime=getConfigBoolean("mfa.allow_bootstrap",allowBootstrapMfa);
     if(!enrollment.isEmpty()){
       var secret=(String)enrollment.getFirst().get("secret");
       passed=Totp.verify(secret,input.code(),1);
       if(!passed&&input.code().length()>=8) passed=consumeRecoveryCode(user.id(),input.code(),(String[])enrollment.getFirst().get("recovery"));
     } else {
       // E3-S04: mã bootstrap từ env chỉ hợp lệ khi cấu hình cho phép (demo/dev); production mặc định fail-closed
-      passed=allowBootstrapMfa&&!bootstrapMfaCode.isBlank()&&bootstrapMfaCode.equals(input.code());
+
+        passed=allowBootstrapMfaRuntime&&!bootstrapMfaCode.isBlank()&&bootstrapMfaCode.equals(input.code());
     }
     if(!passed){ audit(user.id(),user.email(),"AUTH_MFA","FAILED"); throw new ApiProblem(HttpStatus.UNAUTHORIZED,"INVALID_MFA_CODE","Mã xác thực không hợp lệ hoặc đã hết hạn"); }
     jdbc.update("update identity.mfa_challenge set used_at=now() where id=?",UUID.fromString(input.challengeId()));
@@ -169,6 +177,46 @@ public class AuthController {
     return new ConfirmResponse(codes);
   }
 
+  @GetMapping("/mfa/config")
+  MfaConfigResponse getMfaConfig(Authentication auth){
+    var id=accountId(auth);
+    var rows=jdbc.query("select email,role from identity.account where id=?",(rs,n)->Map.of("email",rs.getString("email"),"role",rs.getString("role")),id);
+    if(rows.isEmpty()) throw new ApiProblem(HttpStatus.UNAUTHORIZED,"INVALID_ACCOUNT","Tài khoản không hợp lệ");
+    var account=rows.getFirst();
+    var enabled=getConfigBoolean("mfa.enabled",mfaEnabled);
+    var requireAdmin=getConfigBoolean("mfa.require_admin",requireAdminMfa);
+    var allowBootstrap=getConfigBoolean("mfa.allow_bootstrap",allowBootstrapMfa);
+    return new MfaConfigResponse(enabled,requireAdmin,allowBootstrap);
+  }
+
+    @PutMapping ("/mfa/config")
+    @Transactional
+    public MfaConfigResponse updateMfaConfig(@Valid @RequestBody MfaConfigRequest input, Authentication auth) {
+        var id = accountId(auth);
+        // check quyen
+        var rows = jdbc.query("select email,role from identity.account where id=?",
+                (rs, n) -> Map.of("email", rs.getString("email"), "role", rs.getString("role")), id);
+        if(rows.isEmpty()) {
+            throw new ApiProblem(HttpStatus.UNAUTHORIZED, "INVALID_ACCOUNT", "Tài khoản không hợp lệ");
+        }
+
+        var account = rows.getFirst();
+        if(!"admin@core.local".equals(account.get("email")) || !"PLATFORM_ADMIN".equals(account.get("role"))) {
+            throw new ApiProblem(HttpStatus.FORBIDDEN, "INSUFFICIENT_PRIVILEGES", "Chỉ admin@core.local mới có quyền thay đổi cấu hình MFA");
+        }
+        String sql = "insert into platform.system_config(key,value,updated_by,updated_at) values(?, ?::jsonb, ?, now()) " +
+                "on conflict (key) do update set value=excluded.value, updated_by=excluded.updated_by, updated_at=excluded.updated_at";
+
+        jdbc.update(sql, "mfa.enabled", String.valueOf(input.enabled()), id);
+        jdbc.update(sql, "mfa.require_admin", String.valueOf(input.requireAdmin()), id);
+        jdbc.update(sql, "mfa.allow_bootstrap", String.valueOf(input.allowBootstrap()), id);
+
+        audit(id, auth.getName(), "MFA_CONFIG_UPDATED", "SUCCESS");
+
+        return new MfaConfigResponse(input.enabled(), input.requireAdmin(), input.allowBootstrap());
+    }
+
+
   private SessionResponse issueSession(UserResponse user,boolean remember,UUID rotatedFrom){
     var accessToken=newToken(); var refreshToken=newToken();
     var accessExpiry=Instant.now().plus(remember?Duration.ofDays(7):Duration.ofHours(8));
@@ -209,7 +257,15 @@ public class AuthController {
     if(email!=null){var keys=jdbc.queryForList("select t.tenant_key from identity.account a join platform.tenant t on t.id=a.tenant_id where lower(a.email)=lower(?)",String.class,email);if(!keys.isEmpty())return keys.getFirst();}
     return null;
   }
+
+
   private String newToken(){ var bytes=new byte[32]; random.nextBytes(bytes); return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes); }
   private void audit(UUID actor,String email,String action,String result){ audits.record(tenantKeyOf(actor,email), actor, email, action, null, null, result, null); }
   private void auditFailure(String email,String action){ audits.record(tenantKeyOf(null,email), null, email, action, null, null, "FAILED", null); }
+  private boolean getConfigBoolean(String key,boolean defaultValue){
+    try{
+      var value=jdbc.queryForObject("select value from platform.system_config where key=?",String.class,key);
+      return value!=null?Boolean.parseBoolean(value):defaultValue;
+    }catch(Exception e){return defaultValue;}
+  }
 }
