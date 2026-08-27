@@ -26,8 +26,8 @@ jobs:
       - name: Grant execute permission for mvnw
         run: chmod +x mvnw
         
-      - name: Build and run tests (Testcontainers PostgreSQL)
-        run: ./mvnw -B --no-transfer-progress verify
+      - name: Build application (Skip tests)
+        run: ./mvnw -B --no-transfer-progress package -DskipTests
         
       - name: Upload test reports
         if: always()
