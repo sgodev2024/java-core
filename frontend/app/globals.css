@@ -139,65 +139,164 @@ h1 { font-size: 27px; line-height: 1.15; letter-spacing: -.035em; margin: 0; col
     place-items: center;
     padding: 20px
 }
-.user-create-modal,.user-reset-modal {
+.user-create-modal,
+.user-reset-modal {
     background: #fff;
     border-radius: 13px;
-  width: min(620px, calc(100vw - 30px));
-  max-height: calc(100vh - 40px);
-  overflow-y: auto;
-  box-shadow: 0 24px 80px rgba(0,0,0,.28);
+    width: min(620px, calc(100vw - 30px));
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
+    box-shadow: 0 24px 80px rgba(0,0,0,.28);
+}
+.user-reset-modal 
+.panel-header h2,
+.user-create-modal 
+.panel-header h2 {
+    color: #173c32;
+    font-size: 17px;
+    line-height: 1.3;
+}
+.user-reset-modal 
+.panel-header p,
+.user-create-modal 
+.panel-header p {
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.45;
 }
 .user-create-form {
-  display: grid;
-  gap: 16px;
-  padding: 20px;
+    display: grid;
+    gap: 16px;
+    padding: 20px;
 }
-.user-create-form label,.user-reset-content>label {
-  display: block;
-  color: #4d586a;
+.user-create-form label,
+.user-reset-content>label {
+    display: block;
+    color: #344054;
     font-size: 14px;
     font-weight: 650;
+    line-height: 1.35;
 }
-.user-create-form input,.user-create-form select,.user-reset-content>label input {
-  display: block;
+.user-create-form input,
+.user-create-form select,
+.user-reset-content>label input {
+    display: block;
     width: 100%;
-  height: 40px;
+    height: 42px;
     border: 1px solid #dce2e9;
-  border-radius: 8px;
+    border-radius: 8px;
     margin-top: 7px;
     padding: 0 10px;
-  background: #fff;
-  color: var(--ink);
-    font-size: 11px;
+    background: #fff;
+    color: var(--ink);
+    font-size: 13px;
+    line-height: 1.4;
 }
-.user-create-form input:focus,.user-create-form select:focus,.user-reset-content>label input:focus {
+.user-create-form input::placeholder,
+.user-reset-content input::placeholder { color: #98a2b3; }
+.user-create-form input:focus,
+.user-create-form select:focus,
+.user-reset-content>label input:focus {
   border-color: var(--teal);
   outline: 0;
   box-shadow: 0 0 0 3px rgba(22,134,107,.12);
 }
 .user-create-form select { appearance: auto; }
-.user-create-actions,.user-reset-actions {
+.user-create-actions,
+.user-reset-actions {
     justify-content: flex-end;
-  align-items: center;
-  gap: 8px;
-  border-top: 1px solid #edf0f4;
-  margin-top: 2px;
-  padding-top: 16px;
+    align-items: center;
+    gap: 8px;
+    border-top: 1px solid #edf0f4;
+    margin-top: 2px;
+    padding-top: 16px;
     display: flex
 }
+.user-reset-actions 
+.primary-button,
+.user-create-actions 
+.primary-button,
+.user-create-actions 
+.secondary-button { 
+    min-height: 40px; 
+    font-size: 12px; }
 .password-input-actions {
     align-items: center;
     gap: 8px;
     margin-top: 7px;
     display: flex
 }
-  .password-input-actions input { margin-top: 0; min-width: 0; flex: 1; }
-  .password-input-actions .secondary-button { flex: 0 0 auto; height: 40px; }
-  .user-create-form .auth-error { grid-column: 1 / -1; margin: 0; }
+.password-input-actions input {
+     margin-top: 0; 
+     min-width: 0; 
+     flex: 1; 
+}
+.password-input-actions 
+.secondary-button { 
+    flex: 0 0 auto; 
+    height: 42px; 
+    font-size: 12px; 
+}
+.user-create-form 
+.auth-error {
+    grid-column: 1 / -1; 
+    margin: 0; 
+}
 .user-reset-content {
     gap: 14px;
     padding: 20px;
     display: grid
+}
+.reset-password-editor { 
+    display: grid; 
+    gap: 10px; }
+.reset-mode-switch {
+     display: grid; 
+     grid-template-columns: 1fr 1fr; gap: 4px;
+      padding: 4px; 
+      border: 1px solid var(--line); 
+      border-radius: 9px; 
+      background: #f7faf8; 
+}
+.reset-mode-switch button { 
+    border: 0; 
+    border-radius: 6px; 
+    padding: 9px 10px; 
+    background: transparent;
+    color: var(--muted); 
+    font-size: 12px; 
+    font-weight: 700; 
+}
+.reset-mode-switch button:hover { 
+    color: var(--teal-dark); 
+    background: #fff;
+}
+.reset-mode-switch button.active { 
+    background: #fff; 
+    color: var(--teal-dark); 
+    box-shadow: 0 1px 3px rgba(16,24,40,.1); 
+}
+.reset-password-input { 
+    display: flex; 
+    align-items: center; 
+    gap: 8px; 
+    margin-top: 7px; 
+}
+.reset-password-input input { 
+    min-width: 0; 
+    flex: 1; 
+    margin-top: 0; 
+}
+.reset-password-input 
+.secondary-button { 
+    flex: 0 0 auto; 
+    height: 42px; 
+    font-size: 12px;
+}
+.reset-password-hint { 
+    color: var(--soft); 
+    font-size: 11px; 
+    line-height: 1.4; 
 }
 .temporary-password {
     background: var(--teal-soft);

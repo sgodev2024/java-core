@@ -338,15 +338,16 @@ function Resources({ items, onChanged }: { items: ResourceItem[]; onChanged: () 
 
 function Users() {
   const [items,setItems]=useState<AccessUser[]>([]);const [roles,setRoles]=useState<AccessRole[]>([]);const [organizations,setOrganizations]=useState<Organization[]>([]);
-  const [email,setEmail]=useState("");const [displayName,setDisplayName]=useState("");const [password,setPassword]=useState("");const [roleId,setRoleId]=useState("");const [orgId,setOrgId]=useState("");const [message,setMessage]=useState("");const [createOpen,setCreateOpen]=useState(false);const [creating,setCreating]=useState(false);const [createPasswordCopied,setCreatePasswordCopied]=useState(false);const [resetOpen,setResetOpen]=useState(false);const [resetUser,setResetUser]=useState<AccessUser|null>(null);const [resetPassword,setResetPassword]=useState("");const [resetPasswordCopied,setResetPasswordCopied]=useState(false);const [resetCompleted,setResetCompleted]=useState(false);const [resetting,setResetting]=useState(false);
+  const [email,setEmail]=useState("");const [displayName,setDisplayName]=useState("");const [password,setPassword]=useState("");const [roleId,setRoleId]=useState("");const [orgId,setOrgId]=useState("");const [message,setMessage]=useState("");const [createOpen,setCreateOpen]=useState(false);const [creating,setCreating]=useState(false);const [createPasswordCopied,setCreatePasswordCopied]=useState(false);const [resetOpen,setResetOpen]=useState(false);const [resetUser,setResetUser]=useState<AccessUser|null>(null);const [resetPassword,setResetPassword]=useState("");const [resetPasswordCopied,setResetPasswordCopied]=useState(false);const [resetMode,setResetMode]=useState<"manual"|"generated">("manual");const [resetCompleted,setResetCompleted]=useState(false);const [resetting,setResetting]=useState(false);
   const load=async()=>{try{const [usersData,rolesData,orgData]=await Promise.all([apiRequest<AccessUser[]>("/api/v1/access/users"),apiRequest<AccessRole[]>("/api/v1/access/roles"),apiRequest<Organization[]>("/api/v1/access/organizations")]);setItems(usersData);setRoles(rolesData);setOrganizations(orgData);if(!roleId&&rolesData[0])setRoleId(rolesData[0].id);setMessage("");}catch(error){setMessage(error instanceof Error?error.message:"Không thể tải người dùng");}};
   useEffect(()=>{void load();},[]);
   const openCreate=()=>{setMessage("");setCreatePasswordCopied(false);setCreateOpen(true);};
   const closeCreate=()=>{if(creating)return;setCreateOpen(false);};
   const create=async()=>{try{if(!displayName.trim()||!email.trim()||!password)throw new Error("Vui lòng nhập họ tên, email và mật khẩu.");if(!roleId)throw new Error("Vui lòng chọn vai trò.");setCreating(true);await apiRequest<AccessUser>("/api/v1/access/users",{method:"POST",body:JSON.stringify({email,displayName,password,roleIds:[roleId],orgId:orgId||null})});setEmail("");setDisplayName("");setPassword("");setCreateOpen(false);await load();setMessage("Đã tạo tài khoản và gán vai trò.");}catch(error){setMessage(error instanceof Error?error.message:"Không thể tạo tài khoản");}finally{setCreating(false);}};
   const toggle=async(item:AccessUser)=>{try{await apiRequest<void>(`/api/v1/access/users/${item.id}/enabled`,{method:"PATCH",body:JSON.stringify({enabled:!item.enabled})});await load();}catch(error){setMessage(error instanceof Error?error.message:"Không thể đổi trạng thái");}};
-  const openReset=(item:AccessUser)=>{setMessage("");setResetUser(item);setResetPassword("");setResetPasswordCopied(false);setResetCompleted(false);setResetOpen(true);};
+  const openReset=(item:AccessUser)=>{setMessage("");setResetUser(item);setResetPassword("");setResetPasswordCopied(false);setResetMode("manual");setResetCompleted(false);setResetOpen(true);};
   const closeReset=()=>{if(resetting)return;setResetOpen(false);setResetUser(null);setResetPassword("");setResetCompleted(false);};
+  const generateResetPassword=()=>{const alphabet="ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%";const values=new Uint32Array(16);crypto.getRandomValues(values);const generated=Array.from(values,value=>alphabet[value%alphabet.length]).join("");setResetPassword(generated);setResetMode("generated");setResetPasswordCopied(false);setMessage("");};
   const reset=async()=>{if(!resetUser)return;
     try{if(resetPassword.length<12)
       throw new Error("Mật khẩu phải có ít nhất 12 ký tự.");
@@ -414,7 +415,14 @@ function Users() {
               <code>{resetPassword}</code>
               <button type="button" className="secondary-button" onClick={() => void copyResetPassword()}>{resetPasswordCopied ? "Đã sao chép" : "Sao chép"}</button></div></> : message ? 
               <p className="auth-error" role="alert">{message}</p> : null}
-          {!resetCompleted && !resetting && <label>Mật khẩu mới<input autoFocus type="password" value={resetPassword} onChange={event => { setResetPassword(event.target.value); setResetPasswordCopied(false); }} placeholder="Tối thiểu 12 ký tự" /></label>}
+          {!resetCompleted && !resetting && <div className="reset-password-editor">
+            <div className="reset-mode-switch" role="group" aria-label="Cách nhập mật khẩu">
+              <button type="button" className={resetMode==="manual"?"active":""} onClick={()=>{setResetMode("manual");setResetPassword("");setResetPasswordCopied(false);}}>Nhập thủ công</button>
+              <button type="button" className={resetMode==="generated"?"active":""} onClick={generateResetPassword}>Tự động tạo</button>
+            </div>
+            <label>Mật khẩu mới<div className="reset-password-input"><input autoFocus={resetMode==="manual"} type={resetMode==="generated"?"text":"password"} value={resetPassword} onChange={event => { setResetPassword(event.target.value); setResetPasswordCopied(false); }} placeholder="Tối thiểu 12 ký tự" /><button type="button" className="secondary-button" onClick={() => void copyResetPassword()} disabled={!resetPassword}>{resetPasswordCopied ? "Đã sao chép" : "Sao chép"}</button></div></label>
+            <small className="reset-password-hint">Mật khẩu phải có ít nhất 12 ký tự.</small>
+          </div>}
           <div className="user-reset-actions">
             {!resetCompleted && <button className="primary-button" onClick={() => void reset()} disabled={resetting}>Đặt lại mật khẩu</button>}
             {resetCompleted && <button className="primary-button" onClick={closeReset}>Đóng</button>}
