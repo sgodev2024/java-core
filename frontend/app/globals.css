@@ -144,54 +144,37 @@ h1 { font-size: 27px; line-height: 1.15; letter-spacing: -.035em; margin: 0; col
     background: #fff;
     border-radius: 13px;
     width: min(620px, calc(100vw - 30px));
-    max-height: calc(100vh - 40px);
-    overflow-y: auto;
-    box-shadow: 0 24px 80px rgba(0,0,0,.28);
+    min-width: 0;
 }
-.user-reset-modal 
-.panel-header h2,
-.user-create-modal 
-.panel-header h2 {
-    color: #173c32;
-    font-size: 17px;
-    line-height: 1.3;
+.temporary-password {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
 }
-.user-reset-modal 
-.panel-header p,
-.user-create-modal 
-.panel-header p {
-    color: var(--muted);
-    font-size: 11px;
-    line-height: 1.45;
-}
-.user-create-form {
-    display: grid;
-    gap: 16px;
-    padding: 20px;
-}
-.user-create-form label,
-.user-reset-content>label {
-    display: block;
-    color: #344054;
-    font-size: 14px;
-    font-weight: 650;
-    line-height: 1.35;
-}
-.user-create-form input,
-.user-create-form select,
-.user-reset-content>label input {
-    display: block;
-    width: 100%;
-    height: 42px;
-    border: 1px solid #dce2e9;
+.temporary-password .form-input {
+     min-height: 35px;
+    color: var(--teal-dark);
+    font-family: var(--font-geist-mono), monospace;
+    border: 1px solid #d8dee7;
     border-radius: 8px;
-    margin-top: 7px;
-    padding: 0 10px;
-    background: #fff;
-    color: var(--ink);
-    font-size: 13px;
-    line-height: 1.4;
+    flex: 1;
+    align-items: center;
+    padding: 0 12px;
+    font-size: 12px;
+    font-weight: 650;
+    line-height: 1.45;
+    display: flex;
 }
+.temporary-password .secondary-button {
+    color: #fff;
+    background: #14795f;
+    border-color: #0d674f;
+    min-height: 35px;
+    padding: 6px 6px;
+    font-size: 12px;
+}
+.temporary-password .secondary-button:hover { background: #0d674f; }
 .user-create-form input::placeholder,
 .user-reset-content input::placeholder { color: #98a2b3; }
 .user-create-form input:focus,
@@ -212,14 +195,6 @@ h1 { font-size: 27px; line-height: 1.15; letter-spacing: -.035em; margin: 0; col
     padding-top: 16px;
     display: flex
 }
-.user-reset-actions 
-.primary-button,
-.user-create-actions 
-.primary-button,
-.user-create-actions 
-.secondary-button { 
-    min-height: 40px; 
-    font-size: 12px; }
 .password-input-actions {
     align-items: center;
     gap: 8px;
@@ -237,85 +212,54 @@ h1 { font-size: 27px; line-height: 1.15; letter-spacing: -.035em; margin: 0; col
     height: 42px; 
     font-size: 12px; 
 }
-.user-create-form 
-.auth-error {
+.user-create-form .auth-error { 
     grid-column: 1 / -1; 
-    margin: 0; 
-}
+    margin: 0; }
 .user-reset-content {
-    gap: 14px;
-    padding: 20px;
-    display: grid
+    display: grid;
+    gap: 16px;
+    padding: 22px 20px 20px;
 }
-.reset-password-editor { 
-    display: grid; 
-    gap: 10px; }
-.reset-mode-switch {
-     display: grid; 
-     grid-template-columns: 1fr 1fr; gap: 4px;
-      padding: 4px; 
-      border: 1px solid var(--line); 
-      border-radius: 9px; 
-      background: #f7faf8; 
-}
-.reset-mode-switch button { 
-    border: 0; 
-    border-radius: 6px; 
-    padding: 6px 6px; 
-    background: transparent;
-    color: var(--muted); 
-    font-size: 12px; 
-    font-weight: 700; 
-}
-.reset-mode-switch button:hover { 
-    color: var(--teal-dark); 
-    background: #fff;
-}
-.reset-mode-switch button.active { 
-    background: #fff; 
-    color: var(--teal-dark); 
-    box-shadow: 0 1px 3px rgba(16,24,40,.1); 
-}
-.reset-password-input { 
-    display: flex; 
-    align-items: center; 
-    gap: 8px; 
-    margin-top: 7px; 
-}
-.reset-password-input input {
-     flex: 1;
-     min-width: 0;
-     margin-top: 0;
-     padding: 6px;
-     border: 1px solid #d8dee7;
-}
-.reset-password-input input.generated-password { 
-    background: #f1f8f4; 
-    border-color: #b9dfca; 
-    color: var(--teal-dark); 
-    cursor: not-allowed; 
-    font-family: var(--font-geist-mono), monospace; 
-    font-size: 12px; 
-    font-weight: 650; 
-}
-.reset-password-input .secondary-button { 
-    flex: 0 0 auto; 
+.user-reset-content > p:not(.auth-error) {
+    margin: 0;
+    color: var(--muted);
     font-size: 12px;
+    line-height: 1.55;
 }
-.reset-password-hint { 
-    color: var(--soft); 
-    font-size: 11px; 
-    line-height: 1.4; 
+.reset-password-editor {
+    display: grid;
+    gap: 9px;
 }
-.temporary-password {
-    background: var(--teal-soft);
+.reset-password-editor .form-label {
+    margin-bottom: 8px;
+    color: #344054;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.35;
+}
+.reset-password-input {
+    display: flex;
     align-items: center;
     gap: 8px;
-    padding: 8px 10px;
-    display: flex;
 }
-.temporary-password code {
-    flex: 1;
+.reset-password-input input {
+    flex: 1; 
+    padding: 6px; 
+    border: 1px solid #d8dee7;
+    border-radius : 8px;
+}
+.reset-password-input .generate-password-button {
+    padding: 9px 12px;
+    background: #14795f;
+    color: #fff;
+}
+.reset-password-input .generate-password-button:hover {
+    background: #0d674f;
+}
+.reset-password-hint {
+    color: var(--soft);
+    font-size: 11px;
+    line-height: 1.4;
 }
 .auth-loading { min-height: 100vh; display: grid; place-items: center; background: linear-gradient(145deg,var(--transition-green-50),var(--transition-green-100)); }.auth-loading span { width: 30px; height: 30px; border: 3px solid #dce5e3; border-top-color: var(--teal); border-radius: 50%; animation: auth-spin .8s linear infinite; }@keyframes auth-spin { to { transform: rotate(360deg); } }
 .auth-page { min-height: 100vh; display: grid; grid-template-columns: minmax(420px, .92fr) minmax(520px, 1.08fr); background: radial-gradient(circle at 82% 12%,rgba(35,133,88,.14),transparent 30%),linear-gradient(145deg,var(--transition-green-100),var(--transition-green-50)); }
@@ -342,8 +286,8 @@ h1 { font-size: 27px; line-height: 1.15; letter-spacing: -.035em; margin: 0; col
   .user-reset-modal { width: calc(100vw - 30px); }
   .user-reset-modal .panel-header { padding: 15px; }
   .user-reset-content { padding: 15px; }
-  .temporary-password { align-items: stretch; flex-direction: column; }
-  .temporary-password .secondary-button, .user-reset-actions .primary-button { width: 100%; }
+.temporary-password { align-items: stretch; flex-direction: column; }
+.temporary-password .secondary-button, .user-reset-actions .primary-button { width: 100%; }
   .user-reset-actions { flex-direction: column-reverse; }
 }
 
