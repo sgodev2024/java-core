@@ -28,6 +28,7 @@ type AccessRole = { id:string; code:string; name:string; systemRole:boolean };
 type AccessPolicy = { id:string; code:string; resourceType:string; action:string; effect:string; condition:string; version:number; enabled:boolean };
 type Organization = { id:string; code:string; name:string; parentCode?:string; status:string; createdAt:string };
 type SessionData = { accessToken:string; refreshToken:string; expiresAt:string; user:UserInfo };
+type MfaConfig = { enabled:boolean; requireAdmin:boolean; allowBootstrap:boolean };
 type JobItem = { id:string; tenantKey:string; jobType:string; status:string; attempts:number; leasedBy?:string; availableAt?:string; lastError?:string; createdAt:string };
 type OutboxItem = { id:string; eventType:string; tenantKey:string; status:string; attempts:number; createdAt:string; availableAt:string; lastError?:string };
 type BootstrapData = {
@@ -420,10 +421,29 @@ function Settings({ values, onSave }: { values: Record<string,string>; onSave: (
   const [tier,setTier]=useState(values["environment.tier"] ?? "standard");
   const [region,setRegion]=useState(values["environment.region"] ?? "Ho Chi Minh City");
   const [url,setUrl]=useState(values["environment.publicUrl"] ?? "https://corejava.sgodata.com");
+  const [mfaConfig,setMfaConfig]=useState<MfaConfig|null>(null);
+  const [mfaLoading,setMfaLoading]=useState(true);
+  const [mfaSaving,setMfaSaving]=useState(false);
+  const [mfaMessage,setMfaMessage]=useState("");
+
+  useEffect(()=>{void apiRequest<MfaConfig>("/api/v1/auth/mfa/config").then(config=>{setMfaConfig({enabled:Boolean(config.enabled),requireAdmin:Boolean(config.requireAdmin),allowBootstrap:Boolean(config.allowBootstrap)});}).catch(error=>{setMfaMessage(error instanceof Error?error.message:"Không thể tải cấu hình MFA.");}).finally(()=>setMfaLoading(false));},[]);
+
+  const toggleMfa=async()=>{
+    if(!mfaConfig)return;
+    setMfaSaving(true);setMfaMessage("");
+    try {
+      const nextConfig={...mfaConfig,enabled:!mfaConfig.enabled};
+      await apiRequest<MfaConfig>("/api/v1/auth/mfa/config",{method:"PUT",body:JSON.stringify(nextConfig)});
+      setMfaConfig(nextConfig);
+      setMfaMessage(`Đã ${nextConfig.enabled?"bật":"tắt"} MFA.`);
+    } catch(error) { setMfaMessage(error instanceof Error?error.message:"Không thể cập nhật cấu hình MFA."); }
+    finally { setMfaSaving(false); }
+  };
+
   return (
     <>
       <PageTitle eyebrow="Deployment configuration" title="Cấu hình" description="Thông tin môi trường và các chính sách vận hành đang có hiệu lực." action={<button className="primary-button" onClick={() => onSave([{key:"environment.name",value:name},{key:"environment.tier",value:tier},{key:"environment.region",value:region},{key:"environment.publicUrl",value:url}])}>Lưu thay đổi</button>} />
-      <div className="settings-layout single"><section className="panel settings-form"><h2>Thông tin deployment</h2><p>Thay đổi được lưu vào PostgreSQL và ghi audit. Tenant kỹ thuật không được trình bày như một chức năng SaaS.</p><label>Tên môi trường<input value={name} onChange={e=>setName(e.target.value)} /></label><div className="form-grid"><label>Service tier<select value={tier} onChange={e=>setTier(e.target.value)}><option value="pilot">Pilot</option><option value="standard">Standard</option><option value="critical">Critical</option></select></label><label>Khu vực<input value={region} onChange={e=>setRegion(e.target.value)} /></label></div><label>Public base URL<input value={url} onChange={e=>setUrl(e.target.value)} /></label></section></div>
+      <div className="settings-layout single"><section className="panel settings-form"><h2>Thông tin deployment</h2><p>Thay đổi được lưu vào PostgreSQL và ghi audit. Tenant kỹ thuật không được trình bày như một chức năng SaaS.</p><label>Tên môi trường<input value={name} onChange={e=>setName(e.target.value)} /></label><div className="form-grid"><label>Service tier<select value={tier} onChange={e=>setTier(e.target.value)}><option value="pilot">Pilot</option><option value="standard">Standard</option><option value="critical">Critical</option></select></label><label>Khu vực<input value={region} onChange={e=>setRegion(e.target.value)} /></label></div><label>Public base URL<input value={url} onChange={e=>setUrl(e.target.value)} /></label></section><section className="panel settings-form"><h2>Xác thực đa yếu tố</h2><p>Quản lý MFA cho tài khoản quản trị. Thay đổi được ghi audit và áp dụng cho các lần đăng nhập tiếp theo.</p><div className="setting-toggle"><div><strong>MFA</strong><span>{mfaLoading?"Đang tải cấu hình...":mfaConfig?.enabled?"Đang bật":"Đang tắt"}</span></div><button type="button" className={`toggle ${mfaConfig?.enabled?"on":""}`} aria-label={mfaConfig?.enabled?"Tắt MFA":"Bật MFA"} aria-pressed={mfaConfig?.enabled??false} disabled={mfaLoading||mfaSaving||!mfaConfig} onClick={()=>void toggleMfa()}><i /></button></div>{mfaMessage&&<p className="operation-message" role="status">{mfaMessage}</p>}</section></div>
     </>
   );
 }

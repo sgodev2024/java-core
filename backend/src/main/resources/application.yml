@@ -23,9 +23,9 @@ management:
 springdoc.swagger-ui.path: /swagger-ui
 core:
   bootstrap-admin-password: ${CORE_BOOTSTRAP_ADMIN_PASSWORD:}
-  bootstrap-mfa-code: ${CORE_BOOTSTRAP_MFA_CODE:}
+  bootstrap-mfa-code: ${CORE_BOOTSTRAP_MFA_CODE:123456}
   mfa.enabled: ${CORE_MFA_ENABLED:true}
-  mfa.allow-bootstrap: ${CORE_MFA_ALLOW_BOOTSTRAP:false}
+  mfa.allow-bootstrap: ${CORE_MFA_ALLOW_BOOTSTRAP:true}
   mfa.require-admin: ${CORE_MFA_REQUIRE_ADMIN:true}
   file-storage-root: ${FILE_STORAGE_ROOT:/data/files}
   migration.enabled: ${CORE_MIGRATION_ENABLED:true}
