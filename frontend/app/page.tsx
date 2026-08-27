@@ -362,19 +362,23 @@ function Users() {
     <section className="panel table-panel">
       <div className="data-table access-table">
         <div className="table-row table-head">
-          <span>Người dùng</span><span>Vai trò</span>
+          <span>Người dùng</span>
+          <span>Vai trò</span>
           <span>Trạng thái</span>
-          <span>Ngày tạo</span>
+          <span>Ngày tạo</span>  
           <span>Thao tác</span>
           <span></span>
           </div>{items.map(item=><div className="table-row" key={item.id}>
             <span><strong>{item.displayName}</strong>
-            <small>{item.email}</small>
+            <small>{item.email}</small></span>
+            <span>{item.roles.join(", ")||"Chưa gán"}</span><span><em className={`state ${item.enabled?"teal":"gray"}`}>{item.enabled?"ACTIVE":"DISABLED"}</em></span>
+            <span>{new Date(item.createdAt).toLocaleDateString("vi-VN")}</span>
+            <span>
+              <button className="text-button" onClick={()=>void toggle(item)}>{item.enabled?"Vô hiệu hóa":"Kích hoạt"}</button>
             </span>
-            <span>{item.roles.join(", ")||"Chưa gán"}</span><span><em className={`state ${item.enabled?"teal":"gray"}`}>{item.enabled?"ACTIVE":"DISABLED"}</em></span><span>{new Date(item.createdAt).toLocaleDateString("vi-VN")}</span><span><button className="text-button" onClick={()=>void toggle(item)}>{item.enabled?"Vô hiệu hóa":"Kích hoạt"}</button></span>
             <span>
               <button className="text-button" onClick={()=>openReset(item)}>Đặt lại mật khẩu</button>
-              </span>
+            </span>
               </div>)}</div></section>
       {createOpen&&<div className="modal-backdrop user-create-backdrop" role="presentation" onMouseDown={closeCreate}>
         <section className="user-create-modal" role="dialog" aria-modal="true" aria-labelledby="create-user-title" onMouseDown={event=>event.stopPropagation()}><div className="panel-header">
@@ -396,20 +400,28 @@ function Users() {
                   </div>
               </div></section>
           </div>}
-      {resetOpen&&<div className="modal-backdrop user-reset-backdrop" role="presentation" onMouseDown={closeReset}>
-        <section className="user-reset-modal" role="dialog" aria-modal="true" aria-labelledby="reset-password-title" onMouseDown={event=>event.stopPropagation()}>
-          <div className="panel-header"><div><h2 id="reset-password-title">Đặt lại mật khẩu</h2><p>{resetUser?.email}</p></div><button className="text-button" onClick={closeReset}>Đóng</button></div>
-          <div className="user-reset-content">{resetting?<p>Đang cập nhật mật khẩu</p>:resetCompleted?<><p>Mật khẩu mới đã được đặt thành công. Hãy sao chép và bàn giao cho người dùng.</p>
-          <div className="temporary-password"><code>{resetPassword}</code>
-          <button type="button" className="secondary-button" onClick={()=>void copyResetPassword()}>{resetPasswordCopied?"Đã sao chép":"Sao chép"}</button></div></>:message?<p className="auth-error" role="alert">{message}</p>:null}
-          {!resetCompleted&&!resetting&&<label>Mật khẩu mới<input autoFocus type="password" value={resetPassword} onChange={event=>{setResetPassword(event.target.value);setResetPasswordCopied(false);}} placeholder="Tối thiểu 12 ký tự" /></label>}
+    {resetOpen && <div className="modal-backdrop user-reset-backdrop" role="presentation" onMouseDown={closeReset}>
+      <section className="user-reset-modal" role="dialog" aria-modal="true" aria-labelledby="reset-password-title" onMouseDown={event => event.stopPropagation()}>
+        <div className="panel-header">
+          <div>
+            <h2 id="reset-password-title">Đặt lại mật khẩu</h2>
+            <p>{resetUser?.email}</p>
+            </div>
+            <button className="text-button" onClick={closeReset}>Đóng</button>
+          </div>
+        <div className="user-reset-content">{resetting ? <p>Đang cập nhật mật khẩu</p> : resetCompleted ? <><p>Mật khẩu mới đã được đặt thành công. Hãy sao chép và bàn giao cho người dùng.</p>
+          <div className="temporary-password">
+              <code>{resetPassword}</code>
+              <button type="button" className="secondary-button" onClick={() => void copyResetPassword()}>{resetPasswordCopied ? "Đã sao chép" : "Sao chép"}</button></div></> : message ? 
+              <p className="auth-error" role="alert">{message}</p> : null}
+          {!resetCompleted && !resetting && <label>Mật khẩu mới<input autoFocus type="password" value={resetPassword} onChange={event => { setResetPassword(event.target.value); setResetPasswordCopied(false); }} placeholder="Tối thiểu 12 ký tự" /></label>}
           <div className="user-reset-actions">
-            {!resetCompleted&&<button className="primary-button" onClick={()=>void reset()} disabled={resetting}>Đặt lại mật khẩu</button>}
-            {resetCompleted&&<button className="primary-button" onClick={closeReset}>Đóng</button>}
+            {!resetCompleted && <button className="primary-button" onClick={() => void reset()} disabled={resetting}>Đặt lại mật khẩu</button>}
+            {resetCompleted && <button className="primary-button" onClick={closeReset}>Đóng</button>}
           </div>
-          </div>
-        </section>
-      </div>}
+        </div>
+      </section>
+    </div>}
   </>;
 }
 

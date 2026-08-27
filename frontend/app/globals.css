@@ -96,7 +96,14 @@ h1 { font-size: 27px; line-height: 1.15; letter-spacing: -.035em; margin: 0; col
 .primary-button { border: 1px solid #0d674f; background: #14795f; color: white; box-shadow: 0 2px 5px rgba(13,103,79,.18); }.primary-button:hover { background: #0d674f; }
 .secondary-button { border: 1px solid #d8dee7; background: white; color: #344054; }.secondary-button:hover, .ghost-button:hover { background: #f7f8fa; }
 .ghost-button { border: 1px solid var(--line); background: white; color: #4c576a; }
-.text-button { border: 0; background: transparent; color: var(--teal-dark); font-weight: 650; font-size: 11px; white-space: nowrap; }
+.text-button { 
+    border: 0; 
+    background: transparent; 
+    color: var(--teal-dark); 
+    font-weight: 650; 
+    font-size: 11px; 
+    white-space: nowrap; 
+}
 
 .health-banner { background: linear-gradient(100deg, #effaf7 0%, #f7fbfa 100%); border: 1px solid #cdece3; border-radius: var(--radius); padding: 15px 18px; display: flex; align-items: center; gap: 13px; margin-bottom: 18px; }
 .health-mark { width: 34px; height: 34px; border-radius: 10px; background: #d8f3eb; display: grid; place-items: center; color: var(--teal-dark); font-weight: 800; }
@@ -135,22 +142,47 @@ h1 { font-size: 27px; line-height: 1.15; letter-spacing: -.035em; margin: 0; col
 .user-create-modal,.user-reset-modal {
     background: #fff;
     border-radius: 13px;
-    width: min(620px,100vw - 30px);
+  width: min(620px, calc(100vw - 30px));
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  box-shadow: 0 24px 80px rgba(0,0,0,.28);
 }
-.user-create-form label,.user-reset-content>label { 
+.user-create-form {
+  display: grid;
+  gap: 16px;
+  padding: 20px;
+}
+.user-create-form label,.user-reset-content>label {
+  display: block;
+  color: #4d586a;
     font-size: 14px;
     font-weight: 650;
 }
 .user-create-form input,.user-create-form select,.user-reset-content>label input {
+  display: block;
     width: 100%;
-    height: 38px;
+  height: 40px;
     border: 1px solid #dce2e9;
+  border-radius: 8px;
     margin-top: 7px;
     padding: 0 10px;
+  background: #fff;
+  color: var(--ink);
     font-size: 11px;
 }
+.user-create-form input:focus,.user-create-form select:focus,.user-reset-content>label input:focus {
+  border-color: var(--teal);
+  outline: 0;
+  box-shadow: 0 0 0 3px rgba(22,134,107,.12);
+}
+.user-create-form select { appearance: auto; }
 .user-create-actions,.user-reset-actions {
     justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  border-top: 1px solid #edf0f4;
+  margin-top: 2px;
+  padding-top: 16px;
     display: flex
 }
 .password-input-actions {
@@ -159,6 +191,9 @@ h1 { font-size: 27px; line-height: 1.15; letter-spacing: -.035em; margin: 0; col
     margin-top: 7px;
     display: flex
 }
+  .password-input-actions input { margin-top: 0; min-width: 0; flex: 1; }
+  .password-input-actions .secondary-button { flex: 0 0 auto; height: 40px; }
+  .user-create-form .auth-error { grid-column: 1 / -1; margin: 0; }
 .user-reset-content {
     gap: 14px;
     padding: 20px;
@@ -192,6 +227,10 @@ h1 { font-size: 27px; line-height: 1.15; letter-spacing: -.035em; margin: 0; col
 .password-signout { width: 100%; margin: 18px 0 0; text-align: center; }
 
 @media (max-width: 560px) {
+  .user-create-modal .panel-header { padding: 15px; }
+  .user-create-form { gap: 14px; padding: 15px; }
+  .user-create-actions { align-items: stretch; flex-direction: column-reverse; }
+  .user-create-actions .primary-button, .user-create-actions .secondary-button { width: 100%; }
   .user-reset-modal { width: calc(100vw - 30px); }
   .user-reset-modal .panel-header { padding: 15px; }
   .user-reset-content { padding: 15px; }
