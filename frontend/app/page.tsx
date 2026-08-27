@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { AppIcon } from "./components/app-icon";
 
-type View = "home" | "approvals" | "modules" | "resources" | "users" | "organizations" | "access" | "activity" | "files" | "settings";
+type View = "home" | "profile" | "approvals" | "modules" | "resources" | "users" | "organizations" | "access" | "activity" | "files" | "settings";
 type AuthStep = "login" | "mfa";
 
 class ApiProblemError extends Error {
@@ -189,6 +189,52 @@ function PasswordChangeScreen({ onChanged, onSignOut }: { onChanged: () => void;
 
 function StatusDot({ tone = "teal" }: { tone?: string }) {
   return <span className={`status-dot ${tone}`} aria-hidden="true" />;
+}
+
+function AccountProfile({ user }: { user: UserInfo }) {
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmation, setConfirmation] = useState("");
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const initials = (user.displayName || user.email).split(/\s+/).map(part => part[0]).join("").slice(0, 2).toUpperCase();
+  const roleLabel = user.role === "PLATFORM_ADMIN" ? "Quản trị viên hệ thống" : "Người dùng ứng dụng";
+
+  const changePassword = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError(""); setMessage("");
+    if (newPassword.length < 12 || !/[A-Za-z]/.test(newPassword) || !/[0-9]/.test(newPassword)) return setError("Mật khẩu mới phải có ít nhất 12 ký tự, gồm cả chữ và số.");
+    if (newPassword !== confirmation) return setError("Mật khẩu xác nhận chưa khớp.");
+    setSaving(true);
+    try {
+      await apiRequest<void>("/api/v1/auth/change-password", { method: "POST", body: JSON.stringify({ currentPassword, newPassword }) });
+      setCurrentPassword(""); setNewPassword(""); setConfirmation(""); setMessage("Đã cập nhật mật khẩu và ghi nhận vào audit.");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Không thể đổi mật khẩu."); }
+    finally { setSaving(false); }
+  };
+
+  return <>
+    <PageTitle eyebrow="Tài khoản" title="Hồ sơ & bảo mật" description="Quản lý thông tin nhận diện và phương thức bảo vệ tài khoản của bạn." />
+    <div className="account-profile-grid">
+      <section className="panel account-identity-panel">
+        <div className="account-identity-head"><span className="account-avatar">{initials}</span><div><h2>{user.displayName}</h2><p>{user.email}</p></div><span className="account-live"><StatusDot /> Đang hoạt động</span></div>
+        <div className="account-details"><div><span>Vai trò</span><strong>{roleLabel}</strong></div><div><span>Email đăng nhập</span><strong>{user.email}</strong></div><div><span>Account ID</span><code>{user.id}</code></div></div>
+        <div className="account-note"><AppIcon name="shield" size={17}/><p><strong>Danh tính được xác thực từ Core Identity</strong><small>Thông tin này được lấy trực tiếp từ hồ sơ phiên đăng nhập hiện tại.</small></p></div>
+      </section>
+      <section className="panel security-panel">
+        <div className="account-panel-heading"><span className="account-panel-icon"><AppIcon name="lock" size={17}/></span><div><h2>Bảo mật tài khoản</h2><p>Thay đổi mật khẩu định kỳ để duy trì quyền truy cập an toàn.</p></div></div>
+        <div className="security-status"><span><StatusDot /> Phiên đăng nhập đang được bảo vệ</span><small>Bearer token · Core API</small></div>
+        <form className="account-password-form" onSubmit={changePassword}>
+          <label>Mật khẩu hiện tại<input type="password" autoComplete="current-password" value={currentPassword} onChange={event => setCurrentPassword(event.target.value)} /></label>
+          <label>Mật khẩu mới<input type="password" autoComplete="new-password" value={newPassword} onChange={event => setNewPassword(event.target.value)} /></label>
+          <label>Xác nhận mật khẩu mới<input type="password" autoComplete="new-password" value={confirmation} onChange={event => setConfirmation(event.target.value)} /></label>
+          {error && <p className="auth-error" role="alert">{error}</p>}{message && <p className="operation-message" role="status">{message}</p>}
+          <button className="primary-button" disabled={saving}><AppIcon name="lock" size={14}/>{saving ? "Đang cập nhật..." : "Cập nhật mật khẩu"}</button>
+        </form>
+      </section>
+    </div>
+  </>;
 }
 
 function PageTitle({ eyebrow, title, description, action }: { eyebrow: string; title: string; description: string; action?: React.ReactNode }) {
@@ -472,7 +518,7 @@ export default function Home() {
   const downloadFile=async(item:FileItem)=>{const response=await fetch(`${API_URL}/api/v1/files/${item.id}/content`,{headers:authHeaders()});if(!response.ok){const problem=await response.json().catch(()=>({}));setOperationError(problem.detail||"Nội dung file chưa sẵn sàng");return;}const url=URL.createObjectURL(await response.blob());const anchor=document.createElement("a");anchor.href=url;anchor.download=item.name;anchor.click();URL.revokeObjectURL(url);};
   const signIn=(session:SessionData,remember:boolean)=>{persistSession(session,remember);setUser(session.user);setNavigation(null);setApiOnline(true);setAuthenticated(true);};
   const signOut=async()=>{const accessToken=storedToken();if(accessToken)await fetch(`${API_URL}/api/v1/auth/logout`,{method:"POST",headers:{Authorization:`Bearer ${accessToken}`}}).catch(()=>undefined);clearSession();window.history.replaceState(null,"","/");setAuthenticated(false);setPasswordChangeRequired(false);setNavigation(null);setData(null);setUser(null);setLogoutOpen(false);setProfileOpen(false);setView("home");};
-  const initials=(user?.displayName||user?.email||"CP").split(/\s+/).map(part=>part[0]).join("").slice(0,2).toUpperCase();const settingsItem=allPages.find(entry=>entry.item.viewKey==="settings")?.item;const businessSection=sections.find(section=>section.key==="business");
+  const initials=(user?.displayName||user?.email||"CP").split(/\s+/).map(part=>part[0]).join("").slice(0,2).toUpperCase();const businessSection=sections.find(section=>section.key==="business");
   const renderPageButton=(item:NavigationItem,compact=false)=><div className={`nav-entry ${compact?"compact":""}`} key={item.key}><button className={view===item.viewKey?"active":""} onClick={()=>openItem(item)}><span className="nav-icon"><AppIcon name={item.icon} size={17}/></span><span>{item.label}</span></button><button className={`favorite-toggle ${navigation?.favoriteKeys.includes(item.key)?"selected":""}`} aria-label={`${navigation?.favoriteKeys.includes(item.key)?"Bỏ":"Thêm"} yêu thích ${item.label}`} onClick={()=>toggleFavorite(item)}><AppIcon name="star" size={14}/></button></div>;
   const renderSection=(section:NavigationSection)=>{const rootItems=section.items.filter(item=>!item.parentKey);if(section.key==="home"){const home=rootItems.find(item=>item.type==="PAGE");return home?renderPageButton(home):null;}const open=expandedSection===section.key;return <section className={`nav-section ${open?"open":""}`} key={section.key}><button className={`nav-section-trigger ${currentSection?.key===section.key?"active":""}`} aria-expanded={open} onClick={()=>setExpandedSection(open?"":section.key)}><span className="nav-icon"><AppIcon name={section.icon} size={17}/></span><span>{section.label}</span><b><AppIcon name="chevron-down" size={13}/></b></button>{open&&<div className="nav-section-children">{rootItems.map(item=>item.type==="GROUP"?<div className={`nav-group ${expandedGroup===item.key?"open":""}`} key={item.key}><button className="nav-group-trigger" aria-expanded={expandedGroup===item.key} onClick={()=>setExpandedGroup(expandedGroup===item.key?"":item.key)}><span className="nav-icon"><AppIcon name={item.icon} size={17}/></span><span>{item.label}</span><b><AppIcon name="chevron-down" size={13}/></b></button>{expandedGroup===item.key&&<div className="nav-children">{section.items.filter(child=>child.parentKey===item.key&&child.type==="PAGE").map(child=>renderPageButton(child))}</div>}</div>:renderPageButton(item))}{rootItems.length===0&&<span className="nav-section-empty">Chưa có module được cấp quyền</span>}</div>}</section>;};
 
@@ -480,6 +526,8 @@ export default function Home() {
   if(!authenticated)return <LoginScreen onAuthenticated={signIn}/>;
   if(passwordChangeRequired)return <PasswordChangeScreen onChanged={()=>{setPasswordChangeRequired(false);setNavigation(null);}} onSignOut={()=>void signOut()}/>;
   if(!navigation)return <div className="auth-loading" aria-label="Đang tải Navigation Registry"><span/></div>;
+
+  const openProfile=()=>{setView("profile");setProfileOpen(false);if(window.location.pathname!=="/account/profile")window.history.pushState(null,"","/account/profile");window.scrollTo({top:0,behavior:"smooth"});};
 
   return <div className="app-shell">
     <aside className={`sidebar ${sidebarOpen?"open":""}`}>
@@ -491,10 +539,10 @@ export default function Home() {
       <div className="sidebar-status"><div><StatusDot tone={apiOnline?"teal":"amber"}/><strong>{apiOnline?"Backend connected":"Backend unavailable"}</strong></div><span>Navigation {navigation.revision}</span></div>
     </aside>
     {sidebarOpen&&<button className="sidebar-scrim" aria-label="Đóng menu" onClick={()=>setSidebarOpen(false)}/>}
-    <div className="main-area"><header className="topbar"><button className="mobile-menu" aria-label="Mở menu" onClick={()=>setSidebarOpen(true)}><AppIcon name="menu"/></button><div className="breadcrumb"><span>{currentSectionLabel}</span><b>/</b><strong>{currentLabel}</strong></div><button className="command-trigger" onClick={()=>setCommandOpen(true)}><AppIcon name="search" size={15}/> Tìm module hoặc chức năng... <kbd>Ctrl K</kbd></button><div className="top-actions"><button aria-label="Thông báo" className="notification-button" onClick={()=>{setNotificationsOpen(!notificationsOpen);setProfileOpen(false);}}><AppIcon name="bell" size={17}/><i/></button><button className="profile-button" aria-expanded={profileOpen} onClick={()=>{setProfileOpen(!profileOpen);setNotificationsOpen(false);}}><span>{initials}</span><div><strong>{user?.displayName||"Người dùng"}</strong><small>{user?.role==="PLATFORM_ADMIN"?"Quản trị viên hệ thống":"Người dùng ứng dụng"}</small></div><b><AppIcon name="chevron-down" size={13}/></b></button></div>
+    <div className="main-area"><header className="topbar"><button className="mobile-menu" aria-label="Mở menu" onClick={()=>setSidebarOpen(true)}><AppIcon name="menu"/></button><div className="breadcrumb"><span>{view==="profile"?"Tài khoản":currentSectionLabel}</span><b>/</b><strong>{view==="profile"?"Hồ sơ & bảo mật":currentLabel}</strong></div><button className="command-trigger" onClick={()=>setCommandOpen(true)}><AppIcon name="search" size={15}/> Tìm module hoặc chức năng... <kbd>Ctrl K</kbd></button><div className="top-actions"><button aria-label="Thông báo" className="notification-button" onClick={()=>{setNotificationsOpen(!notificationsOpen);setProfileOpen(false);}}><AppIcon name="bell" size={17}/><i/></button><button className="profile-button" aria-expanded={profileOpen} onClick={()=>{setProfileOpen(!profileOpen);setNotificationsOpen(false);}}><span>{initials}</span><div><strong>{user?.displayName||"Người dùng"}</strong><small>{user?.role==="PLATFORM_ADMIN"?"Quản trị viên hệ thống":"Người dùng ứng dụng"}</small></div><b><AppIcon name="chevron-down" size={13}/></b></button></div>
       {notificationsOpen&&<div className="notification-popover"><div><strong>Thông báo</strong><button aria-label="Đóng thông báo" onClick={()=>setNotificationsOpen(false)}><AppIcon name="x" size={16}/></button></div><article><span className="notice teal"><AppIcon name="check-circle" size={15}/></span><p><strong>Navigation Registry đã đồng bộ</strong><small>Menu được lọc theo module, quyền và nhiệm vụ hiện tại.</small></p><time>Live</time></article></div>}
-      {profileOpen&&<div className="profile-popover"><div className="profile-summary"><span>{initials}</span><p><strong>{user?.displayName||"Người dùng"}</strong><small>{user?.email}</small></p></div><div className="profile-role"><span>{user?.role==="PLATFORM_ADMIN"?"SYSTEM ADMINISTRATOR":"APPLICATION USER"}</span><em>Dedicated deployment</em></div>{settingsItem&&<button onClick={()=>{openItem(settingsItem);setProfileOpen(false);}}><span><AppIcon name="settings" size={15}/></span> Hồ sơ & bảo mật</button>}<button onClick={()=>setLogoutOpen(true)} className="logout-action"><span><AppIcon name="logout" size={15}/></span> Đăng xuất</button></div>}
-    </header><main>{operationError&&<p className="auth-error" role="alert">{operationError}</p>}{view==="home"&&businessSection&&(data?<Overview onNavigate={navigate} data={data} displayName={user?.displayName}/>:<BusinessHome section={businessSection} onOpen={openItem}/>)}{view==="approvals"&&<DemoApprovalWorkspace apiUrl={API_URL}/>} {data&&view==="modules"&&<Modules items={data.modules} onStatus={changeModuleStatus}/>} {data&&view==="resources"&&<Resources items={data.resources} onChanged={refresh}/>} {view==="users"&&<Users/>} {view==="organizations"&&<Organizations/>} {view==="access"&&<Access/>} {data&&view==="activity"&&<Activity items={data.activities}/>} {data&&view==="files"&&<Files items={data.files} storageGb={data.summary.storageGb} onUpload={uploadFile} onDownload={downloadFile}/>} {data&&view==="settings"&&<Settings values={data.settings} onSave={items=>mutate("/api/v1/control-plane/settings","PUT",items)}/>} {currentSection?.key==="system-administration"&&!data&&<div className="auth-loading" aria-label="Đang tải dữ liệu quản trị"><span/></div>}</main></div>
+      {profileOpen&&<div className="profile-popover"><div className="profile-summary"><span>{initials}</span><p><strong>{user?.displayName||"Người dùng"}</strong><small>{user?.email}</small></p></div><div className="profile-role"><span>{user?.role==="PLATFORM_ADMIN"?"SYSTEM ADMINISTRATOR":"APPLICATION USER"}</span><em>Dedicated deployment</em></div><button onClick={openProfile}><span><AppIcon name="settings" size={15}/></span> Hồ sơ & bảo mật</button><button onClick={()=>setLogoutOpen(true)} className="logout-action"><span><AppIcon name="logout" size={15}/></span> Đăng xuất</button></div>}
+    </header><main>{operationError&&<p className="auth-error" role="alert">{operationError}</p>}{view==="profile"&&user&&<AccountProfile user={user}/>} {view==="home"&&businessSection&&(data?<Overview onNavigate={navigate} data={data} displayName={user?.displayName}/>:<BusinessHome section={businessSection} onOpen={openItem}/>)}{view==="approvals"&&<DemoApprovalWorkspace apiUrl={API_URL}/>} {data&&view==="modules"&&<Modules items={data.modules} onStatus={changeModuleStatus}/>} {data&&view==="resources"&&<Resources items={data.resources} onChanged={refresh}/>} {view==="users"&&<Users/>} {view==="organizations"&&<Organizations/>} {view==="access"&&<Access/>} {data&&view==="activity"&&<Activity items={data.activities}/>} {data&&view==="files"&&<Files items={data.files} storageGb={data.summary.storageGb} onUpload={uploadFile} onDownload={downloadFile}/>} {data&&view==="settings"&&<Settings values={data.settings} onSave={items=>mutate("/api/v1/control-plane/settings","PUT",items)}/>} {currentSection?.key==="system-administration"&&!data&&<div className="auth-loading" aria-label="Đang tải dữ liệu quản trị"><span/></div>}</main></div>
     {commandOpen&&<div className="modal-backdrop" role="presentation" onMouseDown={()=>setCommandOpen(false)}><section className="command-modal" role="dialog" aria-modal="true" aria-label="Tìm chức năng" onMouseDown={event=>event.stopPropagation()}><div className="command-input"><span><AppIcon name="search" size={17}/></span><input autoFocus value={commandQuery} onChange={event=>setCommandQuery(event.target.value)} placeholder="Tìm module hoặc chức năng..."/><kbd>ESC</kbd></div><p>{commandQuery?"Kết quả":"Gần đây và chức năng được cấp quyền"}</p>{commandEntries.slice(0,12).map(entry=><button key={entry.item.key} onClick={()=>openItem(entry.item)}><span><AppIcon name={entry.item.icon}/></span><div><strong>{entry.item.label}</strong><small>{entry.section.label} · {entry.item.ownerModule}</small></div><kbd>→</kbd></button>)}{commandEntries.length===0&&<div className="command-empty">Không tìm thấy chức năng phù hợp với quyền hiện tại.</div>}</section></div>}
     {logoutOpen&&<div className="modal-backdrop logout-backdrop" role="presentation" onMouseDown={()=>setLogoutOpen(false)}><section className="logout-modal" role="dialog" aria-modal="true" aria-labelledby="logout-title" onMouseDown={event=>event.stopPropagation()}><span className="logout-icon"><AppIcon name="logout"/></span><h2 id="logout-title">Đăng xuất khỏi Core Platform?</h2><p>Phiên làm việc hiện tại sẽ kết thúc. Bạn cần xác thực lại để tiếp tục truy cập.</p><div><button className="secondary-button" onClick={()=>setLogoutOpen(false)}>Ở lại</button><button className="danger-button" onClick={signOut}>Đăng xuất</button></div></section></div>}
   </div>;
