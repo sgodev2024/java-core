@@ -261,7 +261,7 @@ h1 { font-size: 27px; line-height: 1.15; letter-spacing: -.035em; margin: 0; col
 .reset-mode-switch button { 
     border: 0; 
     border-radius: 6px; 
-    padding: 9px 10px; 
+    padding: 6px 6px; 
     background: transparent;
     color: var(--muted); 
     font-size: 12px; 
@@ -282,15 +282,24 @@ h1 { font-size: 27px; line-height: 1.15; letter-spacing: -.035em; margin: 0; col
     gap: 8px; 
     margin-top: 7px; 
 }
-.reset-password-input input { 
-    min-width: 0; 
-    flex: 1; 
-    margin-top: 0; 
+.reset-password-input input {
+     flex: 1;
+     min-width: 0;
+     margin-top: 0;
+     padding: 6px;
+     border: 1px solid #d8dee7;
 }
-.reset-password-input 
-.secondary-button { 
+.reset-password-input input.generated-password { 
+    background: #f1f8f4; 
+    border-color: #b9dfca; 
+    color: var(--teal-dark); 
+    cursor: not-allowed; 
+    font-family: var(--font-geist-mono), monospace; 
+    font-size: 12px; 
+    font-weight: 650; 
+}
+.reset-password-input .secondary-button { 
     flex: 0 0 auto; 
-    height: 42px; 
     font-size: 12px;
 }
 .reset-password-hint { 

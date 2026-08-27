@@ -420,7 +420,7 @@ function Users() {
               <button type="button" className={resetMode==="manual"?"active":""} onClick={()=>{setResetMode("manual");setResetPassword("");setResetPasswordCopied(false);}}>Nhập thủ công</button>
               <button type="button" className={resetMode==="generated"?"active":""} onClick={generateResetPassword}>Tự động tạo</button>
             </div>
-            <label>Mật khẩu mới<div className="reset-password-input"><input autoFocus={resetMode==="manual"} type={resetMode==="generated"?"text":"password"} value={resetPassword} onChange={event => { setResetPassword(event.target.value); setResetPasswordCopied(false); }} placeholder="Tối thiểu 12 ký tự" /><button type="button" className="secondary-button" onClick={() => void copyResetPassword()} disabled={!resetPassword}>{resetPasswordCopied ? "Đã sao chép" : "Sao chép"}</button></div></label>
+            <label>Mật khẩu mới<div className="reset-password-input"><input autoFocus={resetMode==="manual"} readOnly={resetMode==="generated"} className={resetMode==="generated"?"generated-password":""} type={resetMode==="generated"?"text":"password"} value={resetPassword} onChange={event => { setResetPassword(event.target.value); setResetPasswordCopied(false); }} placeholder="Tối thiểu 12 ký tự" /><button type="button" className="secondary-button" onClick={() => void copyResetPassword()} disabled={!resetPassword}>{resetPasswordCopied ? "Đã sao chép" : "Sao chép"}</button></div></label>
             <small className="reset-password-hint">Mật khẩu phải có ít nhất 12 ký tự.</small>
           </div>}
           <div className="user-reset-actions">
