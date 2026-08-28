@@ -62,9 +62,12 @@ class PasswordPolicyTest extends AbstractApiTest {
     var email = "e3-reset-" + suffix() + "@test.local";
     seedDefaultTenantAccount(email, "InitialPass@1234");
     var userId = jdbc.queryForObject("select id from identity.account where email=?", java.util.UUID.class, email);
+    var resetPassword = "AdminReset@2026x";
 
-    var temp = json.readTree(mvc.perform(post("/api/v1/access/users/%s/reset-password".formatted(userId)).with(bearer(admin)))
+    var temp = json.readTree(mvc.perform(post("/api/v1/access/users/%s/reset-password".formatted(userId)).with(bearer(admin))
+        .contentType(APPLICATION_JSON).content("{\"password\":\"%s\"}".formatted(resetPassword)))
         .andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).get("tempPassword").asText();
+    assertThat(temp).isEqualTo(resetPassword);
     assertThat(temp).hasSizeGreaterThanOrEqualTo(12);
 
     var token = login(email, temp);
