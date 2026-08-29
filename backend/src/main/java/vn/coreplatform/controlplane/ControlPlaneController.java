@@ -219,6 +219,22 @@ public class ControlPlaneController {
     return new ReplayResult(id, true);
   }
 
+    @GetMapping("/deployment")
+    DeploymentInfo deploymentInfo(Authentication auth){
+      requireAdmin(auth);
+      var allSettings = settings();
+      return new DeploymentInfo(
+              allSettings.getOrDefault("name", ""),
+              allSettings.getOrDefault("region", ""),
+              allSettings.getOrDefault("tier", ""),
+              allSettings.getOrDefault("publicUrl", "")
+
+      );
+    }
+
+
+
+
   private List<Module> modules(){return jdbc.query("select * from platform.module order by sort_order",(r,n)->module(r));}
   private List<Resource> resources(){return jdbc.query("select * from platform.resource_descriptor order by updated_at desc",(r,n)->resource(r));}
   private List<Activity> activities(){return jdbc.query("select * from platform.activity order by occurred_at desc limit 50",(r,n)->activity(r));}
@@ -233,4 +249,7 @@ public class ControlPlaneController {
   private void audit(Authentication auth,String action,String type,String resourceId,String result){ audits.record(tenantKeyOf(auth), accountIdOf(auth), auth.getName(), action, type, resourceId, result, null); }
   private String tenantKeyOf(Authentication auth){ var tenantId=((java.util.Map<?,?>)auth.getDetails()).get("tenantId"); return jdbc.queryForObject("select tenant_key from platform.tenant where id=?", String.class, tenantId); }
   private UUID accountIdOf(Authentication auth){ return (UUID)((java.util.Map<?,?>)auth.getDetails()).get("accountId"); }
+    public record DeploymentInfo(String name, String region, String tier, String publicUrl) {}
+
+
 }

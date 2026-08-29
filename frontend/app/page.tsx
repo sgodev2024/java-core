@@ -30,6 +30,7 @@ type Organization = { id:string; code:string; name:string; parentCode?:string; s
 type SessionData = { accessToken:string; refreshToken:string; expiresAt:string; user:UserInfo };
 type JobItem = { id:string; tenantKey:string; jobType:string; status:string; attempts:number; leasedBy?:string; availableAt?:string; lastError?:string; createdAt:string };
 type OutboxItem = { id:string; eventType:string; tenantKey:string; status:string; attempts:number; createdAt:string; availableAt:string; lastError?:string };
+type DeploymentInfo = { name:string; region:string; tier:string; publicUrl:string };
 type BootstrapData = {
   summary: { resources: number; modules: number; pendingOutbox: number; runningJobs: number; files: number; storageGb: number; coreVersion: string; environment: string };
   modules: ModuleItem[]; resources: ResourceItem[]; activities: ActivityItem[]; roles: RoleItem[]; files: FileItem[]; audit: AuditItem[]; settings: Record<string,string>;
@@ -466,10 +467,24 @@ function Settings({ values, onSave }: { values: Record<string,string>; onSave: (
   const [tier,setTier]=useState(values["environment.tier"] ?? "standard");
   const [region,setRegion]=useState(values["environment.region"] ?? "Ho Chi Minh City");
   const [url,setUrl]=useState(values["environment.publicUrl"] ?? "https://corejava.sgodata.com");
+  const [message,setMessage]=useState("");
+
+  useEffect(()=>{
+    void apiRequest<DeploymentInfo>("/api/v1/control-plane/deployment")
+      .then(deployment=>{
+        setName(deployment.name||values["environment.name"]||"core-production-vn");
+        setTier(deployment.tier||values["environment.tier"]||"standard");
+        setRegion(deployment.region||values["environment.region"]||"Ho Chi Minh City");
+        setUrl(deployment.publicUrl||values["environment.publicUrl"]||"https://corejava.sgodata.com");
+        setMessage("");
+      })
+        .catch(error=>setMessage(error instanceof Error?error.message:"Không thể tải thông tin deployment."));
+      },[values]);
+
   return (
     <>
       <PageTitle eyebrow="Deployment configuration" title="Cấu hình" description="Thông tin môi trường và các chính sách vận hành đang có hiệu lực." action={<button className="primary-button" onClick={() => onSave([{key:"environment.name",value:name},{key:"environment.tier",value:tier},{key:"environment.region",value:region},{key:"environment.publicUrl",value:url}])}>Lưu thay đổi</button>} />
-      <div className="settings-layout single"><section className="panel settings-form"><h2>Thông tin deployment</h2><p>Thay đổi được lưu vào PostgreSQL và ghi audit. Tenant kỹ thuật không được trình bày như một chức năng SaaS.</p><label>Tên môi trường<input value={name} onChange={e=>setName(e.target.value)} /></label><div className="form-grid"><label>Service tier<select value={tier} onChange={e=>setTier(e.target.value)}><option value="pilot">Pilot</option><option value="standard">Standard</option><option value="critical">Critical</option></select></label><label>Khu vực<input value={region} onChange={e=>setRegion(e.target.value)} /></label></div><label>Public base URL<input value={url} onChange={e=>setUrl(e.target.value)} /></label></section></div>
+      <div className="settings-layout single"><section className="panel settings-form"><div className="panel-header"><div><h2>Thông tin deployment</h2><p>Thông tin được tải trực tiếp từ Control Plane API và thay đổi được lưu vào PostgreSQL.</p></div></div>{message&&<p className="auth-error" role="alert">{message}</p>}<label>Tên môi trường<input value={name} onChange={e=>setName(e.target.value)} /></label><div className="form-grid"><label>Service tier<select value={tier} onChange={e=>setTier(e.target.value)}><option value="pilot">Pilot</option><option value="standard">Standard</option><option value="critical">Critical</option></select></label><label>Khu vực<input value={region} onChange={e=>setRegion(e.target.value)} /></label></div><label>Public base URL<input value={url} onChange={e=>setUrl(e.target.value)} /></label></section></div>
     </>
   );
 }
