@@ -49,6 +49,7 @@ public class AccessManagementController {
       @NotEmpty List<UUID> roleIds,
       UUID orgId) {
   }
+
   public record ResetPasswordRequest(@NotBlank @Size(min = 12, max = 128) String password) {
   }
 
@@ -161,7 +162,7 @@ public class AccessManagementController {
     var t = permissions.tenant(a);
     int c = jdbc.update(
         "update identity.account set password_hash=?,password_algo='ARGON2ID',must_change_password=true,password_changed_at=now(),failed_attempts=0,locked_until=null where id=? and tenant_id=? and account_type='HUMAN'",
-      passwords.encode(input.password()), id, t);
+        passwords.encode(input.password()), id, t);
     if (c == 0)
       throw new ApiProblem(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "User không tồn tại");
     jdbc.update("update identity.session set revoked_at=now() where account_id=? and revoked_at is null", id);
