@@ -11,6 +11,10 @@ spring:
     enabled: false
   jackson:
     default-property-inclusion: non_null
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 5MB
 server:
   port: ${PORT:8080}
   shutdown: graceful
@@ -46,3 +50,4 @@ core:
   jobs.initial-delay-ms: ${CORE_JOBS_INITIAL_DELAY_MS:4000}
   jobs.scheduler-poll-ms: ${CORE_JOBS_SCHEDULER_POLL_MS:5000}
   jobs.scheduler-initial-delay-ms: ${CORE_JOBS_SCHEDULER_INITIAL_DELAY_MS:5000}
+

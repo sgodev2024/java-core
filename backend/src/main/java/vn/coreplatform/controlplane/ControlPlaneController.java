@@ -14,6 +14,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.Authentication;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/v1/control-plane")
@@ -37,6 +38,7 @@ public class ControlPlaneController {
   public record ResourceCreate(@NotBlank @Size(max=160) String name,@Pattern(regexp="DOMAIN|DYNAMIC") String storageMode,@NotBlank @Size(max=80) String ownerModule,@NotBlank @Size(max=20) String schemaVersion){}
   public record RoleCreate(@NotBlank @Size(max=100) String name,@Size(max=120) String scope){}
   public record SettingUpdate(@NotBlank @Size(max=100) String key,@NotBlank @Size(max=500) String value){}
+  public record SystemLogo(UUID fileId,String name,String mediaType,long sizeBytes,Instant updatedAt){}
 
   @GetMapping("/bootstrap")
   Bootstrap bootstrap(Authentication auth){
@@ -195,6 +197,34 @@ public class ControlPlaneController {
     audits.releaseLegalHold(tenantKey);
     audits.record(tenantKey, accountIdOf(auth), auth.getName(), "AUDIT_LEGAL_HOLD_RELEASED", "AUDIT", tenantKey, "SUCCESS", null);
     return Map.of("tenantKey", tenantKey, "held", false);
+  }
+
+  // ---- System Logo Management ----
+  @PostMapping("/system/logo") @ResponseStatus(HttpStatus.CREATED) @Transactional
+  SystemLogo uploadSystemLogo(@RequestPart("file") MultipartFile file, Authentication auth) throws java.io.IOException {
+    requireAdmin(auth);
+    if(file.isEmpty() || file.getSize() > 5L*1024*1024) throw new ApiProblem(HttpStatus.BAD_REQUEST, "FILE_SIZE", "File rỗng hoặc vượt 5 MB");
+    if(!file.getContentType().startsWith("image/")) throw new ApiProblem(HttpStatus.BAD_REQUEST, "INVALID_MEDIA_TYPE", "Chỉ chấp nhận file ảnh");
+    
+    var bytes = file.getBytes();
+    jdbc.update("update platform.tenant set logo_data=?, logo_media_type=? where tenant_key='default'", bytes, file.getContentType());
+    
+    audit(auth, "SYSTEM_LOGO_UPDATED", "SYSTEM", "logo", "SUCCESS");
+    return new SystemLogo(null, file.getOriginalFilename(), file.getContentType(), bytes.length, Instant.now());
+  }
+
+  @GetMapping("/system/logo") ResponseEntity<byte[]> getSystemLogo() {
+    var row = jdbc.queryForList("select logo_data, logo_media_type from platform.tenant where tenant_key='default' limit 1");
+    if(row.isEmpty() || row.getFirst().get("logo_data") == null) throw new ApiProblem(HttpStatus.NOT_FOUND, "LOGO_NOT_FOUND", "Hệ thống chưa có logo");
+    var logo = row.getFirst();
+    var bytes = (byte[]) logo.get("logo_data");
+    var mediaType = (String) logo.get("logo_media_type");
+    
+    return ResponseEntity.ok()
+      .contentType(MediaType.parseMediaType(mediaType))
+      .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=logo")
+      .contentLength(bytes.length)
+      .body(bytes);
   }
 
   // ---- E6: outbox operations ----
