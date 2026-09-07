@@ -21,6 +21,7 @@ type ResourceItem = { id: string; name: string; storageMode: string; ownerModule
 type ActivityItem = { id: string; kind: string; name: string; metadata: string; status: string; occurredAt: string };
 type RoleItem = { id: string; name: string; users: number; policies: number; scope: string };
 type FileItem = { id: string; name: string; mediaType: string; sizeBytes: number; classification: string; status: string; updatedAt: string };
+type SystemLogo = { id: string; name: string; mediaType: string; sizeBytes: number; updatedAt: string };
 type AuditItem = { id: string; actorEmail: string; action: string; resourceType?: string; resourceId?: string; result: string; correlationId: string; occurredAt: string };
 type DynamicDefinition = { id:string; resourceKey:string; name:string; version:number; schema:{fields:Array<{key:string;type:string;required?:boolean}>}; status:string; updatedAt:string };
 type AccessUser = { id:string; email:string; displayName:string; enabled:boolean; roles:string[]; createdAt:string };
@@ -547,7 +548,7 @@ function Files({ items, storageGb, onUpload, onDownload }: { items: FileItem[]; 
   );
 }
 
-function Settings({ values, onSave }: { values: Record<string,string>; onSave: (items: Array<{key:string;value:string}>) => Promise<void> }) {
+function Settings({ values, onSave, onLogoChange }: { values: Record<string,string>; onSave: (items: Array<{key:string;value:string}>) => Promise<void>; onLogoChange: (file: Blob) => void }) {
   const [name,setName]=useState(values["environment.name"] ?? "core-production-vn");
   const [tier,setTier]=useState(values["environment.tier"] ?? "standard");
   const [region,setRegion]=useState(values["environment.region"] ?? "Ho Chi Minh City");
@@ -556,8 +557,54 @@ function Settings({ values, onSave }: { values: Record<string,string>; onSave: (
   const [mfaLoading,setMfaLoading]=useState(true);
   const [mfaSaving,setMfaSaving]=useState(false);
   const [mfaMessage,setMfaMessage]=useState("");
+  const [logo,setLogo]=useState<SystemLogo|null>(null);
+  const [logoUrl,setLogoUrl]=useState("");
+  const [logoLoading,setLogoLoading]=useState(true);
+  const [logoSaving,setLogoSaving]=useState(false);
+  const [logoMessage,setLogoMessage]=useState("");
 
   useEffect(()=>{void apiRequest<MfaConfig>("/api/v1/auth/mfa/config").then(config=>{setMfaConfig({enabled:Boolean(config.enabled),requireAdmin:Boolean(config.requireAdmin),allowBootstrap:Boolean(config.allowBootstrap)});}).catch(error=>{setMfaMessage(error instanceof Error?error.message:"Không thể tải cấu hình MFA.");}).finally(()=>setMfaLoading(false));},[]);
+
+  useEffect(()=>{
+    let active=true;
+    const loadLogo=async()=>{
+      try {
+        const response=await fetch(`${API_URL}/api/v1/control-plane/system/logo`,{headers:{Authorization:`Bearer ${storedToken()}`} });
+        if(response.status===404)return;
+        if(!response.ok)throw new Error("Không thể tải logo hệ thống.");
+        const contentType=response.headers.get("Content-Type")||"image/*";
+        const contentLength=Number(response.headers.get("Content-Length")||0);
+        const blob=await response.blob();
+        if(!active)return;
+        const nextUrl=URL.createObjectURL(blob);
+        setLogoUrl(previous=>{if(previous)URL.revokeObjectURL(previous);return nextUrl;});
+        onLogoChange(blob);
+        setLogo({id:"system-logo",name:decodeURIComponent(response.headers.get("Content-Disposition")?.split("filename*=UTF-8''")[1]||"logo"),mediaType:contentType,sizeBytes:contentLength||blob.size,updatedAt:new Date().toISOString()});
+      } catch(error) { if(active)setLogoMessage(error instanceof Error?error.message:"Không thể tải logo hệ thống."); }
+      finally { if(active)setLogoLoading(false); }
+    };
+    void loadLogo();
+    return ()=>{active=false;setLogoUrl(previous=>{if(previous)URL.revokeObjectURL(previous);return "";});};
+  },[]);
+
+  const uploadLogo=async(file:File)=>{
+    setLogoMessage("");
+    if(!file.type.startsWith("image/"))return setLogoMessage("Chỉ chấp nhận file ảnh.");
+    if(file.size>5*1024*1024)return setLogoMessage("Logo không được vượt quá 5 MB.");
+    setLogoSaving(true);
+    try {
+      const form=new FormData();form.append("file",file);
+      const response=await fetch(`${API_URL}/api/v1/control-plane/system/logo`,{method:"POST",headers:{Authorization:`Bearer ${storedToken()}`},body:form});
+      const body=await response.json().catch(()=>({}));
+      if(!response.ok)throw new ApiProblemError(body.detail||"Không thể cập nhật logo hệ thống.",body.code);
+      const nextLogo=body as SystemLogo;
+      const previewUrl=URL.createObjectURL(file);
+      setLogoUrl(previous=>{if(previous)URL.revokeObjectURL(previous);return previewUrl;});
+      onLogoChange(file);
+      setLogo(nextLogo);setLogoMessage("Đã cập nhật logo hệ thống.");
+    } catch(error) { setLogoMessage(error instanceof Error?error.message:"Không thể cập nhật logo hệ thống."); }
+    finally { setLogoSaving(false); }
+  };
 
   const toggleMfa=async()=>{
     if(!mfaConfig)return;
@@ -574,7 +621,7 @@ function Settings({ values, onSave }: { values: Record<string,string>; onSave: (
   return (
     <>
       <PageTitle eyebrow="Deployment configuration" title="Cấu hình" description="Thông tin môi trường và các chính sách vận hành đang có hiệu lực." action={<button className="primary-button" onClick={() => onSave([{key:"environment.name",value:name},{key:"environment.tier",value:tier},{key:"environment.region",value:region},{key:"environment.publicUrl",value:url}])}>Lưu thay đổi</button>} />
-      <div className="settings-layout single"><section className="panel settings-form"><h2>Thông tin deployment</h2><p>Thay đổi được lưu vào PostgreSQL và ghi audit. Tenant kỹ thuật không được trình bày như một chức năng SaaS.</p><label>Tên môi trường<input value={name} onChange={e=>setName(e.target.value)} /></label><div className="form-grid"><label>Service tier<select value={tier} onChange={e=>setTier(e.target.value)}><option value="pilot">Pilot</option><option value="standard">Standard</option><option value="critical">Critical</option></select></label><label>Khu vực<input value={region} onChange={e=>setRegion(e.target.value)} /></label></div><label>Public base URL<input value={url} onChange={e=>setUrl(e.target.value)} /></label></section><section className="panel settings-form"><h2>Xác thực đa yếu tố</h2><p>Quản lý MFA cho tài khoản quản trị. Thay đổi được ghi audit và áp dụng cho các lần đăng nhập tiếp theo.</p><div className="setting-toggle"><div><strong>MFA</strong><span>{mfaLoading?"Đang tải cấu hình...":mfaConfig?.enabled?"Đang bật":"Đang tắt"}</span></div><button type="button" className={`toggle ${mfaConfig?.enabled?"on":""}`} aria-label={mfaConfig?.enabled?"Tắt MFA":"Bật MFA"} aria-pressed={mfaConfig?.enabled??false} disabled={mfaLoading||mfaSaving||!mfaConfig} onClick={()=>void toggleMfa()}><i /></button></div>{mfaMessage&&<p className="operation-message" role="status">{mfaMessage}</p>}</section></div>
+      <div className="settings-layout single"><section className="panel settings-form"><h2>Thông tin deployment</h2><p>Thay đổi được lưu vào PostgreSQL và ghi audit. Tenant kỹ thuật không được trình bày như một chức năng SaaS.</p><label>Tên môi trường<input value={name} onChange={e=>setName(e.target.value)} /></label><div className="form-grid"><label>Service tier<select value={tier} onChange={e=>setTier(e.target.value)}><option value="pilot">Pilot</option><option value="standard">Standard</option><option value="critical">Critical</option></select></label><label>Khu vực<input value={region} onChange={e=>setRegion(e.target.value)} /></label></div><label>Public base URL<input value={url} onChange={e=>setUrl(e.target.value)} /></label></section><section className="panel settings-form"><h2>Logo hệ thống</h2><p>Ảnh logo hiển thị trong hệ thống. File ảnh tối đa 5 MB và logo cũ sẽ được thay thế.</p><div className="system-logo-editor"><div className="system-logo-preview">{logoUrl?<img src={logoUrl} alt="Logo hệ thống" />:<AppIcon name="files" size={28}/>}</div><div className="system-logo-details"><strong>{logoLoading?"Đang tải logo...":logo?.name||"Chưa có logo"}</strong><span>{logo?`${(logo.sizeBytes/1024/1024).toFixed(2)} MB · ${logo.mediaType}`:"Chọn PNG, JPG, SVG hoặc định dạng ảnh khác"}</span><label className="secondary-button system-logo-upload"><AppIcon name="upload" size={14}/>{logoSaving?"Đang tải lên...":"Chọn ảnh logo"}<input hidden type="file" accept="image/*" disabled={logoSaving} onChange={event=>{const file=event.target.files?.[0];if(file)void uploadLogo(file);event.currentTarget.value="";}} /></label></div></div>{logoMessage&&<p className={`operation-message ${logoMessage.startsWith("Đã")?"":"logo-error"}`} role="status">{logoMessage}</p>}</section><section className="panel settings-form"><h2>Xác thực đa yếu tố</h2><p>Quản lý MFA cho tài khoản quản trị. Thay đổi được ghi audit và áp dụng cho các lần đăng nhập tiếp theo.</p><div className="setting-toggle"><div><strong>MFA</strong><span>{mfaLoading?"Đang tải cấu hình...":mfaConfig?.enabled?"Đang bật":"Đang tắt"}</span></div><button type="button" className={`toggle ${mfaConfig?.enabled?"on":""}`} aria-label={mfaConfig?.enabled?"Tắt MFA":"Bật MFA"} aria-pressed={mfaConfig?.enabled??false} disabled={mfaLoading||mfaSaving||!mfaConfig} onClick={()=>void toggleMfa()}><i /></button></div>{mfaMessage&&<p className="operation-message" role="status">{mfaMessage}</p>}</section></div>
     </>
   );
 }
@@ -596,9 +643,30 @@ export default function Home() {
   const [navigation,setNavigation]=useState<NavigationModel|null>(null);const [expandedSection,setExpandedSection]=useState("");const [expandedGroup,setExpandedGroup]=useState("");const [view,setView]=useState<View>("home");
   const [sidebarOpen,setSidebarOpen]=useState(false);const [commandOpen,setCommandOpen]=useState(false);const [commandQuery,setCommandQuery]=useState("");const [notificationsOpen,setNotificationsOpen]=useState(false);const [profileOpen,setProfileOpen]=useState(false);const [logoutOpen,setLogoutOpen]=useState(false);
   const [apiOnline,setApiOnline]=useState(false);const [data,setData]=useState<BootstrapData|null>(null);const [operationError,setOperationError]=useState("");const [passwordChangeRequired,setPasswordChangeRequired]=useState(false);
+  const [systemLogoUrl,setSystemLogoUrl]=useState("");
   const authHeaders=()=>({Authorization:`Bearer ${storedToken()}`});
+  const updateSystemLogo= (file: Blob) => {
+    const nextUrl=URL.createObjectURL(file);
+    setSystemLogoUrl(previous=>{if(previous)URL.revokeObjectURL(previous);return nextUrl;});
+  };
 
   useEffect(()=>{const existing=storedToken();if(!existing){setAuthReady(true);return;}void apiRequest<UserInfo>("/api/v1/auth/me").then(account=>{setUser(account);setAuthenticated(true);setApiOnline(true);}).catch(()=>clearSession()).finally(()=>setAuthReady(true));},[]);
+
+  useEffect(()=>{
+    if(!authenticated)return;
+    let active=true;
+    const loadSystemLogo=async()=>{
+      try {
+        const response=await fetch(`${API_URL}/api/v1/control-plane/system/logo`,{headers:{Authorization:`Bearer ${storedToken()}`} });
+        if(!response.ok)return;
+        const nextUrl=URL.createObjectURL(await response.blob());
+        if(!active){URL.revokeObjectURL(nextUrl);return;}
+        setSystemLogoUrl(previous=>{if(previous)URL.revokeObjectURL(previous);return nextUrl;});
+      } catch { }
+    };
+    void loadSystemLogo();
+    return ()=>{active=false;setSystemLogoUrl(previous=>{if(previous)URL.revokeObjectURL(previous);return "";});};
+  },[authenticated]);
 
   const selectRoute=(model:NavigationModel)=>{const pages=model.sections.flatMap(section=>section.items.filter(item=>item.type==="PAGE").map(item=>({section,item})));const route=window.location.pathname;const selected=pages.find(entry=>entry.item.route===route)||pages.find(entry=>entry.item.key==="core.home")||pages[0];if(selected){setView(selected.item.viewKey as View);setExpandedSection(selected.section.key);setExpandedGroup(selected.item.parentKey);if(route!==selected.item.route)window.history.replaceState(null,"",selected.item.route);}};
   const loadNavigation=async()=>{const model=await apiRequest<NavigationModel>("/api/v1/navigation/me");setNavigation(model);selectRoute(model);return model;};
@@ -610,6 +678,7 @@ export default function Home() {
 
   const sections=navigation?.sections??[];const allPages=useMemo(()=>sections.flatMap(section=>section.items.filter(item=>item.type==="PAGE").map(item=>({section,item}))),[sections]);
   const currentEntry=allPages.find(entry=>entry.item.viewKey===view);const currentLabel=currentEntry?.item.label??"Trang chủ";const currentSection=currentEntry?.section;const currentSectionLabel=currentSection?.key==="home"?"Ứng dụng":currentSection?.label||"Ứng dụng";
+  const settingsItem=allPages.find(entry=>entry.item.viewKey==="settings")?.item;
   const favoriteEntries=(navigation?.favoriteKeys??[]).map(key=>allPages.find(entry=>entry.item.key===key)).filter((entry):entry is {section:NavigationSection;item:NavigationItem}=>Boolean(entry));
   const commandEntries=allPages.filter(entry=>`${entry.item.label} ${entry.item.keywords.join(" ")} ${entry.section.label}`.toLowerCase().includes(commandQuery.toLowerCase())).sort((left,right)=>{const recent=navigation?.recentKeys??[];const leftIndex=recent.indexOf(left.item.key),rightIndex=recent.indexOf(right.item.key);return(leftIndex<0?999:leftIndex)-(rightIndex<0?999:rightIndex)||left.item.sortOrder-right.item.sortOrder;});
 
@@ -632,11 +701,9 @@ export default function Home() {
   if(passwordChangeRequired)return <PasswordChangeScreen onChanged={()=>{setPasswordChangeRequired(false);setNavigation(null);}} onSignOut={()=>void signOut()}/>;
   if(!navigation)return <div className="auth-loading" aria-label="Đang tải Navigation Registry"><span/></div>;
 
-  const openProfile=()=>{setView("profile");setProfileOpen(false);if(window.location.pathname!=="/account/profile")window.history.pushState(null,"","/account/profile");window.scrollTo({top:0,behavior:"smooth"});};
-
   return <div className="app-shell">
     <aside className={`sidebar ${sidebarOpen?"open":""}`}>
-      <div className="brand"><div className="brand-mark"><i/><i/><i/><i/></div><div><strong>Core</strong><span>Platform</span></div></div>
+      <div className="brand">{systemLogoUrl?<img className="brand-logo" src={systemLogoUrl} alt="Logo hệ thống" />:<div className="brand-mark"><i/><i/><i/><i/></div>}<div><strong>Core</strong><span>Platform</span></div></div>
       <nav aria-label="Điều hướng ứng dụng">
         {favoriteEntries.length>0&&<><p>Yêu thích</p>{favoriteEntries.slice(0,5).map(entry=>renderPageButton(entry.item,true))}</>}
         {sections.map(renderSection)}
@@ -646,8 +713,13 @@ export default function Home() {
     {sidebarOpen&&<button className="sidebar-scrim" aria-label="Đóng menu" onClick={()=>setSidebarOpen(false)}/>}
     <div className="main-area"><header className="topbar"><button className="mobile-menu" aria-label="Mở menu" onClick={()=>setSidebarOpen(true)}><AppIcon name="menu"/></button><div className="breadcrumb"><span>{view==="profile"?"Tài khoản":currentSectionLabel}</span><b>/</b><strong>{view==="profile"?"Hồ sơ & bảo mật":currentLabel}</strong></div><button className="command-trigger" onClick={()=>setCommandOpen(true)}><AppIcon name="search" size={15}/> Tìm module hoặc chức năng... <kbd>Ctrl K</kbd></button><div className="top-actions"><button aria-label="Thông báo" className="notification-button" onClick={()=>{setNotificationsOpen(!notificationsOpen);setProfileOpen(false);}}><AppIcon name="bell" size={17}/><i/></button><button className="profile-button" aria-expanded={profileOpen} onClick={()=>{setProfileOpen(!profileOpen);setNotificationsOpen(false);}}><span>{initials}</span><div><strong>{user?.displayName||"Người dùng"}</strong><small>{user?.role==="PLATFORM_ADMIN"?"Quản trị viên hệ thống":"Người dùng ứng dụng"}</small></div><b><AppIcon name="chevron-down" size={13}/></b></button></div>
       {notificationsOpen&&<div className="notification-popover"><div><strong>Thông báo</strong><button aria-label="Đóng thông báo" onClick={()=>setNotificationsOpen(false)}><AppIcon name="x" size={16}/></button></div><article><span className="notice teal"><AppIcon name="check-circle" size={15}/></span><p><strong>Navigation Registry đã đồng bộ</strong><small>Menu được lọc theo module, quyền và nhiệm vụ hiện tại.</small></p><time>Live</time></article></div>}
+
+      {profileOpen&&<div className="profile-popover"><div className="profile-summary"><span>{initials}</span><p><strong>{user?.displayName||"Người dùng"}</strong><small>{user?.email}</small></p></div><div className="profile-role"><span>{user?.role==="PLATFORM_ADMIN"?"SYSTEM ADMINISTRATOR":"APPLICATION USER"}</span><em>Dedicated deployment</em></div>{settingsItem&&<button onClick={()=>{openItem(settingsItem);setProfileOpen(false);}}><span><AppIcon name="settings" size={15}/></span> Hồ sơ & bảo mật</button>}<button onClick={()=>setLogoutOpen(true)} className="logout-action"><span><AppIcon name="logout" size={15}/></span> Đăng xuất</button></div>}
+    </header><main>{operationError&&<p className="auth-error" role="alert">{operationError}</p>}{view==="home"&&businessSection&&(data?<Overview onNavigate={navigate} data={data} displayName={user?.displayName}/>:<BusinessHome section={businessSection} onOpen={openItem}/>)}{view==="approvals"&&<DemoApprovalWorkspace apiUrl={API_URL}/>} {data&&view==="modules"&&<Modules items={data.modules} onStatus={changeModuleStatus}/>} {data&&view==="resources"&&<Resources items={data.resources} onChanged={refresh}/>} {view==="users"&&<Users/>} {view==="organizations"&&<Organizations/>} {view==="access"&&<Access/>} {data&&view==="activity"&&<Activity items={data.activities}/>} {data&&view==="files"&&<Files items={data.files} storageGb={data.summary.storageGb} onUpload={uploadFile} onDownload={downloadFile}/>} {data&&view==="settings"&&<Settings values={data.settings} onSave={items=>mutate("/api/v1/control-plane/settings","PUT",items)} onLogoChange={updateSystemLogo}/>} {currentSection?.key==="system-administration"&&!data&&<div className="auth-loading" aria-label="Đang tải dữ liệu quản trị"><span/></div>}</main></div>
+{/* =======
       {profileOpen&&<div className="profile-popover"><div className="profile-summary"><span>{initials}</span><p><strong>{user?.displayName||"Người dùng"}</strong><small>{user?.email}</small></p></div><div className="profile-role"><span>{user?.role==="PLATFORM_ADMIN"?"SYSTEM ADMINISTRATOR":"APPLICATION USER"}</span><em>Dedicated deployment</em></div><button onClick={openProfile}><span><AppIcon name="settings" size={15}/></span> Hồ sơ & bảo mật</button><button onClick={()=>setLogoutOpen(true)} className="logout-action"><span><AppIcon name="logout" size={15}/></span> Đăng xuất</button></div>}
     </header><main>{operationError&&<p className="auth-error" role="alert">{operationError}</p>}{view==="profile"&&user&&<AccountProfile user={user}/>} {view==="home"&&businessSection&&(data?<Overview onNavigate={navigate} data={data} displayName={user?.displayName}/>:<BusinessHome section={businessSection} onOpen={openItem}/>)}{view==="approvals"&&<DemoApprovalWorkspace apiUrl={API_URL}/>} {data&&view==="modules"&&<Modules items={data.modules} onStatus={changeModuleStatus}/>} {data&&view==="resources"&&<Resources items={data.resources} onChanged={refresh}/>} {view==="users"&&<Users/>} {view==="organizations"&&<Organizations/>} {view==="access"&&<Access/>} {data&&view==="activity"&&<Activity items={data.activities}/>} {data&&view==="files"&&<Files items={data.files} storageGb={data.summary.storageGb} onUpload={uploadFile} onDownload={downloadFile}/>} {data&&view==="settings"&&<Settings values={data.settings} onSave={items=>mutate("/api/v1/control-plane/settings","PUT",items)}/>} {currentSection?.key==="system-administration"&&!data&&<div className="auth-loading" aria-label="Đang tải dữ liệu quản trị"><span/></div>}</main></div>
+>>>>>>> 7b4b62c17d5bf4b761d6918d85f482d419df0f16 */}
     {commandOpen&&<div className="modal-backdrop" role="presentation" onMouseDown={()=>setCommandOpen(false)}><section className="command-modal" role="dialog" aria-modal="true" aria-label="Tìm chức năng" onMouseDown={event=>event.stopPropagation()}><div className="command-input"><span><AppIcon name="search" size={17}/></span><input autoFocus value={commandQuery} onChange={event=>setCommandQuery(event.target.value)} placeholder="Tìm module hoặc chức năng..."/><kbd>ESC</kbd></div><p>{commandQuery?"Kết quả":"Gần đây và chức năng được cấp quyền"}</p>{commandEntries.slice(0,12).map(entry=><button key={entry.item.key} onClick={()=>openItem(entry.item)}><span><AppIcon name={entry.item.icon}/></span><div><strong>{entry.item.label}</strong><small>{entry.section.label} · {entry.item.ownerModule}</small></div><kbd>→</kbd></button>)}{commandEntries.length===0&&<div className="command-empty">Không tìm thấy chức năng phù hợp với quyền hiện tại.</div>}</section></div>}
     {logoutOpen&&<div className="modal-backdrop logout-backdrop" role="presentation" onMouseDown={()=>setLogoutOpen(false)}><section className="logout-modal" role="dialog" aria-modal="true" aria-labelledby="logout-title" onMouseDown={event=>event.stopPropagation()}><span className="logout-icon"><AppIcon name="logout"/></span><h2 id="logout-title">Đăng xuất khỏi Core Platform?</h2><p>Phiên làm việc hiện tại sẽ kết thúc. Bạn cần xác thực lại để tiếp tục truy cập.</p><div><button className="secondary-button" onClick={()=>setLogoutOpen(false)}>Ở lại</button><button className="danger-button" onClick={signOut}>Đăng xuất</button></div></section></div>}
   </div>;
