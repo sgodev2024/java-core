@@ -4,11 +4,15 @@ import jakarta.validation.Valid; import jakarta.validation.constraints.*;
 import java.security.SecureRandom; import java.sql.Timestamp; import java.time.*; import java.util.*;
 import org.springframework.http.*; import org.springframework.jdbc.core.JdbcTemplate; import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.transaction.annotation.Transactional; import org.springframework.web.bind.annotation.*;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.beans.factory.annotation.Value;
-import vn.coreplatform.security.SecurityConfig; import vn.coreplatform.shared.ApiExceptionHandler.ApiProblem; import vn.coreplatform.shared.CorrelationIdFilter;
+import vn.coreplatform.security.SecurityConfig;
+import vn.coreplatform.shared.ApiExceptionHandler.ApiProblem;
+import vn.coreplatform.shared.CorrelationIdFilter;
 
-@RestController @RequestMapping("/api/v1/auth")
+@RestController
+@RequestMapping("/api/v1/auth")
 public class AuthController {
   private final JdbcTemplate jdbc; private final PasswordEncoder encoder; private final vn.coreplatform.audit.AuditService audits; private final SecureRandom random=new SecureRandom();
   private final String bootstrapMfaCode; private final boolean mfaEnabled; private final boolean allowBootstrapMfa; private final boolean requireAdminMfa;
@@ -126,56 +130,110 @@ public class AuthController {
     return issueSession(user,false,(UUID)row.get("sessionId"));
   }
 
-  @GetMapping("/me") UserResponse me(Authentication auth){ return jdbc.queryForObject("select id,email,display_name,role from identity.account where email=?",(rs,n)->new UserResponse(rs.getObject("id",UUID.class),rs.getString("email"),rs.getString("display_name"),rs.getString("role")),auth.getName()); }
-
-  @PostMapping("/logout") @ResponseStatus(HttpStatus.NO_CONTENT) @Transactional
-  void logout(@RequestHeader(HttpHeaders.AUTHORIZATION) String bearer,Authentication auth){
-    var hash=SecurityConfig.sha256(bearer.substring(7));
-    var family=jdbc.queryForList("select family_id from identity.session where token_hash=?",String.class,hash);
-    if(family.isEmpty()) { jdbc.update("update identity.session set revoked_at=now() where token_hash=?",hash); }
-    else {
-      jdbc.update("update identity.session set revoked_at=now() where family_id=? and revoked_at is null",UUID.fromString(family.getFirst()));
-      jdbc.update("update identity.refresh_token set revoked_at=now() where session_id in (select id from identity.session where family_id=?) and revoked_at is null",UUID.fromString(family.getFirst()));
+    @GetMapping("/me")
+    UserResponse me(Authentication auth) {
+        return jdbc.queryForObject("select id,email,display_name,role from identity.account where email=?", (rs, n) -> new UserResponse(rs.getObject("id", UUID.class), rs.getString("email"), rs.getString("display_name"), rs.getString("role")), auth.getName());
     }
-    audit(null, auth.getName(), "AUTH_LOGOUT", "SUCCESS");
-  }
 
-  @PostMapping("/change-password") @Transactional
-  void changePassword(@Valid @RequestBody ChangePasswordRequest input,@RequestHeader(HttpHeaders.AUTHORIZATION) String bearer,Authentication auth){
-    var rows=jdbc.query("select id,password_hash from identity.account where email=?",(rs,n)->Map.of("id",rs.getObject("id",UUID.class),"hash",rs.getString("password_hash")),auth.getName());
-    if(rows.isEmpty()||!encoder.matches(input.currentPassword(),(String)rows.getFirst().get("hash")))
-      throw new ApiProblem(HttpStatus.BAD_REQUEST,"INVALID_CURRENT_PASSWORD","Mật khẩu hiện tại không đúng");
-    if(!input.newPassword().matches(".*[A-Za-z].*")||!input.newPassword().matches(".*\\d.*"))
-      throw new ApiProblem(HttpStatus.BAD_REQUEST,"WEAK_PASSWORD","Mật khẩu mới phải chứa cả chữ và số, tối thiểu 12 ký tự");
-    var id=(UUID)rows.getFirst().get("id");
-    jdbc.update("update identity.account set password_hash=?,password_algo='ARGON2ID',password_changed_at=now(),must_change_password=false where id=?",encoder.encode(input.newPassword()),id);
-    jdbc.update("update identity.session set revoked_at=now() where account_id=? and revoked_at is null and token_hash<>?",id,SecurityConfig.sha256(bearer.substring(7)));
-    audit(id, auth.getName(), "AUTH_PASSWORD_CHANGED", "SUCCESS");
-  }
+    @PostMapping("/logout")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Transactional
+    void logout(@RequestHeader(HttpHeaders.AUTHORIZATION) String bearer, Authentication auth) {
+        var hash = SecurityConfig.sha256(bearer.substring(7));
+        var family = jdbc.queryForList("select family_id from identity.session where token_hash=?", String.class, hash);
+        if (family.isEmpty()) {
+            jdbc.update("update identity.session set revoked_at=now() where token_hash=?", hash);
+        } else {
+            jdbc.update("update identity.session set revoked_at=now() where family_id=? and revoked_at is null", UUID.fromString(family.getFirst()));
+            jdbc.update("update identity.refresh_token set revoked_at=now() where session_id in (select id from identity.session where family_id=?) and revoked_at is null", UUID.fromString(family.getFirst()));
+        }
+        audit(null, auth.getName(), "AUTH_LOGOUT", "SUCCESS");
+    }
 
-  @PostMapping("/mfa/enroll") @Transactional
-  EnrollmentResponse enroll(Authentication auth){
+    @PostMapping("/change-password")
+    @Transactional
+    void changePassword(@Valid @RequestBody ChangePasswordRequest input, @RequestHeader(HttpHeaders.AUTHORIZATION) String bearer, Authentication auth) {
+        var rows = jdbc.query("select id,password_hash from identity.account where email=?", (rs, n) -> Map.of("id", rs.getObject("id", UUID.class), "hash", rs.getString("password_hash")), auth.getName());
+        if (rows.isEmpty() || !encoder.matches(input.currentPassword(), (String) rows.getFirst().get("hash")))
+            throw new ApiProblem(HttpStatus.BAD_REQUEST, "INVALID_CURRENT_PASSWORD", "Mật khẩu hiện tại không đúng");
+        if (!input.newPassword().matches(".*[A-Za-z].*") || !input.newPassword().matches(".*\\d.*"))
+            throw new ApiProblem(HttpStatus.BAD_REQUEST, "WEAK_PASSWORD", "Mật khẩu mới phải chứa cả chữ và số, tối thiểu 12 ký tự");
+        var id = (UUID) rows.getFirst().get("id");
+        jdbc.update("update identity.account set password_hash=?,password_algo='ARGON2ID',password_changed_at=now(),must_change_password=false where id=?", encoder.encode(input.newPassword()), id);
+        jdbc.update("update identity.session set revoked_at=now() where account_id=? and revoked_at is null and token_hash<>?", id, SecurityConfig.sha256(bearer.substring(7)));
+        audit(id, auth.getName(), "AUTH_PASSWORD_CHANGED", "SUCCESS");
+    }
+
+    @PostMapping("/mfa/enroll")
+    @Transactional
+    EnrollmentResponse enroll(Authentication auth) {
+        var id = accountId(auth);
+        var secret = Totp.generateSecret();
+        jdbc.update("insert into identity.mfa_enrollment(account_id,tenant_id,secret_base32,recovery_code_hashes) values(?,?,?,'{}'::text[]) " +
+                        "on conflict (account_id) do update set secret_base32=excluded.secret_base32, confirmed_at=null, recovery_code_hashes='{}'::text[]",
+                id, tenantId(auth), secret);
+        var uri = "otpauth://totp/CorePlatform:" + auth.getName() + "?secret=" + secret + "&issuer=CorePlatform&algorithm=SHA1&digits=6&period=30";
+        return new EnrollmentResponse(secret, uri);
+    }
+
+    @PostMapping("/mfa/confirm")
+    @Transactional
+    ConfirmResponse confirm(@Valid @RequestBody ConfirmRequest input, Authentication auth) {
+        var id = accountId(auth);
+        var secrets = jdbc.queryForList("select secret_base32 from identity.mfa_enrollment where account_id=? and confirmed_at is null", String.class, id);
+        if (secrets.isEmpty() || !Totp.verify(secrets.getFirst(), input.code(), 1))
+            throw new ApiProblem(HttpStatus.BAD_REQUEST, "MFA_CONFIRM_FAILED", "Mã xác thực không khớp, thử lại");
+        var codes = new ArrayList<String>();
+        var hashes = new ArrayList<String>();
+        for (int i = 0; i < 8; i++) {
+            var code = randomCode();
+            codes.add(code);
+            hashes.add(SecurityConfig.sha256(code));
+        }
+        jdbc.update("update identity.mfa_enrollment set confirmed_at=now(),recovery_code_hashes=?::text[] where account_id=?", textArray(hashes), id);
+        audit(id, auth.getName(), "AUTH_MFA_ENROLLED", "SUCCESS");
+        return new ConfirmResponse(codes);
+    }
+
+  @GetMapping("/mfa/config")
+  MfaConfigResponse getMfaConfig(Authentication auth){
     var id=accountId(auth);
-    var secret=Totp.generateSecret();
-    jdbc.update("insert into identity.mfa_enrollment(account_id,tenant_id,secret_base32,recovery_code_hashes) values(?,?,?,'{}'::text[]) " +
-      "on conflict (account_id) do update set secret_base32=excluded.secret_base32, confirmed_at=null, recovery_code_hashes='{}'::text[]",
-      id,tenantId(auth),secret);
-    var uri="otpauth://totp/CorePlatform:"+auth.getName()+"?secret="+secret+"&issuer=CorePlatform&algorithm=SHA1&digits=6&period=30";
-    return new EnrollmentResponse(secret,uri);
+    var rows=jdbc.query("select email,role from identity.account where id=?",(rs,n)->Map.of("email",rs.getString("email"),"role",rs.getString("role")),id);
+    if(rows.isEmpty()) throw new ApiProblem(HttpStatus.UNAUTHORIZED,"INVALID_ACCOUNT","Tài khoản không hợp lệ");
+    var account=rows.getFirst();
+    var enabled=getConfigBoolean("mfa.enabled",mfaEnabled);
+    var requireAdmin=getConfigBoolean("mfa.require_admin",requireAdminMfa);
+    var allowBootstrap=getConfigBoolean("mfa.allow_bootstrap",allowBootstrapMfa);
+    return new MfaConfigResponse(enabled,requireAdmin,allowBootstrap);
   }
 
-  @PostMapping("/mfa/confirm") @Transactional
-  ConfirmResponse confirm(@Valid @RequestBody ConfirmRequest input,Authentication auth){
-    var id=accountId(auth);
-    var secrets=jdbc.queryForList("select secret_base32 from identity.mfa_enrollment where account_id=? and confirmed_at is null",String.class,id);
-    if(secrets.isEmpty()||!Totp.verify(secrets.getFirst(),input.code(),1))
-      throw new ApiProblem(HttpStatus.BAD_REQUEST,"MFA_CONFIRM_FAILED","Mã xác thực không khớp, thử lại");
-    var codes=new ArrayList<String>(); var hashes=new ArrayList<String>();
-    for(int i=0;i<8;i++){ var code=randomCode(); codes.add(code); hashes.add(SecurityConfig.sha256(code)); }
-    jdbc.update("update identity.mfa_enrollment set confirmed_at=now(),recovery_code_hashes=?::text[] where account_id=?",textArray(hashes),id);
-    audit(id, auth.getName(), "AUTH_MFA_ENROLLED", "SUCCESS");
-    return new ConfirmResponse(codes);
-  }
+    @PutMapping ("/mfa/config")
+    @Transactional
+    public MfaConfigResponse updateMfaConfig(@Valid @RequestBody MfaConfigRequest input, Authentication auth) {
+        var id = accountId(auth);
+        // check quyen
+        var rows = jdbc.query("select email,role from identity.account where id=?",
+                (rs, n) -> Map.of("email", rs.getString("email"), "role", rs.getString("role")), id);
+        if(rows.isEmpty()) {
+            throw new ApiProblem(HttpStatus.UNAUTHORIZED, "INVALID_ACCOUNT", "Tài khoản không hợp lệ");
+        }
+
+        var account = rows.getFirst();
+        if(!"admin@core.local".equals(account.get("email")) || !"PLATFORM_ADMIN".equals(account.get("role"))) {
+            throw new ApiProblem(HttpStatus.FORBIDDEN, "INSUFFICIENT_PRIVILEGES", "Chỉ admin@core.local mới có quyền thay đổi cấu hình MFA");
+        }
+        String sql = "insert into platform.system_config(key,value,updated_by,updated_at) values(?, ?::jsonb, ?, now()) " +
+                "on conflict (key) do update set value=excluded.value, updated_by=excluded.updated_by, updated_at=excluded.updated_at";
+
+        jdbc.update(sql, "mfa.enabled", String.valueOf(input.enabled()), id);
+        jdbc.update(sql, "mfa.require_admin", String.valueOf(input.requireAdmin()), id);
+        jdbc.update(sql, "mfa.allow_bootstrap", String.valueOf(input.allowBootstrap()), id);
+
+        audit(id, auth.getName(), "MFA_CONFIG_UPDATED", "SUCCESS");
+
+        return new MfaConfigResponse(input.enabled(), input.requireAdmin(), input.allowBootstrap());
+    }
+
 
   @GetMapping("/mfa/config")
   MfaConfigResponse getMfaConfig(Authentication auth){
