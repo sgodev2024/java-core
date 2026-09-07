@@ -82,10 +82,21 @@ Phần quyết định kỹ thuật được cập nhật có chủ đích trong
 ## 5. Lịch sử thay đổi tự động
 
 <!-- AUTO-GENERATED:START -->
-> Sinh tự động từ Git. Mốc mã gần nhất: `d57ab26843c1b0037a204c797abfc9bc74c3d1e3` (2026-08-24). Không sửa trực tiếp phần này.
+> Sinh tự động từ Git. Mốc mã gần nhất: `3c9a56be6710f6a2e1a3e0d02612eff2826e1494` (2026-08-28). Không sửa trực tiếp phần này.
 
 | Ngày | Commit | Nội dung | Tác giả | Số file |
 |---|---|---|---|---:|
+| 2026-08-28 | [`3c9a56b`](https://github.com/sgodev2024/java-core/commit/3c9a56be6710f6a2e1a3e0d02612eff2826e1494) | done | NaturalCare | 1 |
+| 2026-08-27 | [`defb852`](https://github.com/sgodev2024/java-core/commit/defb85249925e02da252db137c517ca8f195320e) | Update css | NaturalCare | 2 |
+| 2026-08-27 | [`195c5dc`](https://github.com/sgodev2024/java-core/commit/195c5dc2ce9392b12d0af044472a81008ecd305f) | change css gender | NaturalCare | 2 |
+| 2026-08-27 | [`565ec44`](https://github.com/sgodev2024/java-core/commit/565ec44c9a34f439f4a9a8cc084b2dd734c2827f) | Update gen password | NaturalCare | 2 |
+| 2026-08-27 | [`087c35c`](https://github.com/sgodev2024/java-core/commit/087c35c26b19823d2b3e96e6fefa53f7fc19fc71) | Update css | NaturalCare | 2 |
+| 2026-08-27 | [`0e75752`](https://github.com/sgodev2024/java-core/commit/0e75752bfd3c521cea229373a0e248160f3bca3d) | ci: skip tests and fix build for workflow | DatNguyenTien | 1 |
+| 2026-08-27 | [`7203fea`](https://github.com/sgodev2024/java-core/commit/7203fea2e3f2ce97a14a0065474ec57be18c6686) | update mfa toggling | DatNguyenTien | 2 |
+| 2026-08-27 | [`3a19183`](https://github.com/sgodev2024/java-core/commit/3a19183a08b0cada65a74249d9f9d13162de8e0e) | fix: update logic for MFA feature | DatNguyenTien | 1 |
+| 2026-08-26 | [`3af67f1`](https://github.com/sgodev2024/java-core/commit/3af67f19d10127a275b818e8adb28f068948bea7) | ci: add chmod +x mvnw to backend workflow | DatNguyenTien | 1 |
+| 2026-08-26 | [`b414179`](https://github.com/sgodev2024/java-core/commit/b4141796ef81640f461cac4b3ea5d68647277ffa) | update changepass | NaturalCare | 4 |
+| 2026-08-26 | [`f9b7bb8`](https://github.com/sgodev2024/java-core/commit/f9b7bb82c4a579e2edc028f7bd118062e5cb23f0) | feat: update mfa toggling | DatNguyenTien | 5 |
 | 2026-08-24 | [`d57ab26`](https://github.com/sgodev2024/java-core/commit/d57ab26843c1b0037a204c797abfc9bc74c3d1e3) | fix: accept empty successful API responses | SGO Viet Nam | 1 |
 | 2026-08-24 | [`0d8d3d7`](https://github.com/sgodev2024/java-core/commit/0d8d3d7289da6317a9ad648f32b735856befbbce) | fix: handle mandatory password change without infinite loading | SGO Viet Nam | 4 |
 | 2026-08-23 | [`f778414`](https://github.com/sgodev2024/java-core/commit/f7784146757944069b7dc866d8762ed19151d508) | Apply green transformation interface palette | SGO Development | 6 |
@@ -133,6 +144,106 @@ Phần quyết định kỹ thuật được cập nhật có chủ đích trong
 | 2026-08-15 | [`295b0e6`](https://github.com/sgodev2024/java-core/commit/295b0e6d6b200c9cd17cfe23d11683f8d04d19e8) | Initialize Java Core Platform | SGO Development | 57 |
 
 ## Chi tiết file theo commit
+
+### 2026-08-28 — done
+
+- Commit: [`3c9a56be6710f6a2e1a3e0d02612eff2826e1494`](https://github.com/sgodev2024/java-core/commit/3c9a56be6710f6a2e1a3e0d02612eff2826e1494)
+- Tác giả: NaturalCare
+- Phạm vi file:
+
+- `M` `.github/workflows/backend-ci.yml`
+
+### 2026-08-27 — Update css
+
+- Commit: [`defb85249925e02da252db137c517ca8f195320e`](https://github.com/sgodev2024/java-core/commit/defb85249925e02da252db137c517ca8f195320e)
+- Tác giả: NaturalCare
+- Phạm vi file:
+
+- `M` `frontend/app/globals.css`
+- `M` `frontend/app/page.tsx`
+
+### 2026-08-27 — change css gender
+
+- Commit: [`195c5dc2ce9392b12d0af044472a81008ecd305f`](https://github.com/sgodev2024/java-core/commit/195c5dc2ce9392b12d0af044472a81008ecd305f)
+- Tác giả: NaturalCare
+- Phạm vi file:
+
+- `M` `frontend/app/globals.css`
+- `M` `frontend/app/page.tsx`
+
+### 2026-08-27 — Update gen password
+
+- Commit: [`565ec44c9a34f439f4a9a8cc084b2dd734c2827f`](https://github.com/sgodev2024/java-core/commit/565ec44c9a34f439f4a9a8cc084b2dd734c2827f)
+- Tác giả: NaturalCare
+- Phạm vi file:
+
+- `M` `frontend/app/globals.css`
+- `M` `frontend/app/page.tsx`
+
+### 2026-08-27 — Update css
+
+- Commit: [`087c35c26b19823d2b3e96e6fefa53f7fc19fc71`](https://github.com/sgodev2024/java-core/commit/087c35c26b19823d2b3e96e6fefa53f7fc19fc71)
+- Tác giả: NaturalCare
+- Phạm vi file:
+
+- `M` `frontend/app/globals.css`
+- `M` `frontend/app/page.tsx`
+
+### 2026-08-27 — ci: skip tests and fix build for workflow
+
+- Commit: [`0e75752bfd3c521cea229373a0e248160f3bca3d`](https://github.com/sgodev2024/java-core/commit/0e75752bfd3c521cea229373a0e248160f3bca3d)
+- Tác giả: DatNguyenTien
+- Phạm vi file:
+
+- `M` `.github/workflows/backend-ci.yml`
+
+### 2026-08-27 — update mfa toggling
+
+- Commit: [`7203fea2e3f2ce97a14a0065474ec57be18c6686`](https://github.com/sgodev2024/java-core/commit/7203fea2e3f2ce97a14a0065474ec57be18c6686)
+- Tác giả: DatNguyenTien
+- Phạm vi file:
+
+- `M` `.github/workflows/backend-ci.yml`
+- `M` `backend/mvnw`
+
+### 2026-08-27 — fix: update logic for MFA feature
+
+- Commit: [`3a19183a08b0cada65a74249d9f9d13162de8e0e`](https://github.com/sgodev2024/java-core/commit/3a19183a08b0cada65a74249d9f9d13162de8e0e)
+- Tác giả: DatNguyenTien
+- Phạm vi file:
+
+- `A` `backend/src/main/resources/db/migration/V21__update_system_config_defaults.sql`
+
+### 2026-08-26 — ci: add chmod +x mvnw to backend workflow
+
+- Commit: [`3af67f19d10127a275b818e8adb28f068948bea7`](https://github.com/sgodev2024/java-core/commit/3af67f19d10127a275b818e8adb28f068948bea7)
+- Tác giả: DatNguyenTien
+- Phạm vi file:
+
+- `M` `.github/workflows/backend-ci.yml`
+
+### 2026-08-26 — update changepass
+
+- Commit: [`b4141796ef81640f461cac4b3ea5d68647277ffa`](https://github.com/sgodev2024/java-core/commit/b4141796ef81640f461cac4b3ea5d68647277ffa)
+- Tác giả: NaturalCare
+- Phạm vi file:
+
+- `M` `backend/src/main/java/vn/coreplatform/permission/AccessManagementController.java`
+- `M` `backend/src/test/java/vn/coreplatform/identity/PasswordPolicyTest.java`
+- `M` `frontend/app/globals.css`
+- `M` `frontend/app/page.tsx`
+
+### 2026-08-26 — feat: update mfa toggling
+
+- Commit: [`f9b7bb82c4a579e2edc028f7bd118062e5cb23f0`](https://github.com/sgodev2024/java-core/commit/f9b7bb82c4a579e2edc028f7bd118062e5cb23f0)
+- Tác giả: DatNguyenTien
+- Phạm vi file:
+
+- `M` `backend/src/main/java/vn/coreplatform/identity/AuthController.java`
+- `M` `backend/src/main/resources/application.yml`
+- `A` `backend/src/main/resources/db/migration/V20__system_config_mfa.sql`
+- `M` `frontend/app/page.tsx`
+- `A` `frontend/tsconfig.tsbuildinfo`
 
 ### 2026-08-24 — fix: accept empty successful API responses
 

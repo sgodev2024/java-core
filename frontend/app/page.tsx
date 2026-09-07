@@ -28,6 +28,7 @@ type AccessRole = { id:string; code:string; name:string; systemRole:boolean };
 type AccessPolicy = { id:string; code:string; resourceType:string; action:string; effect:string; condition:string; version:number; enabled:boolean };
 type Organization = { id:string; code:string; name:string; parentCode?:string; status:string; createdAt:string };
 type SessionData = { accessToken:string; refreshToken:string; expiresAt:string; user:UserInfo };
+type MfaConfig = { enabled:boolean; requireAdmin:boolean; allowBootstrap:boolean };
 type JobItem = { id:string; tenantKey:string; jobType:string; status:string; attempts:number; leasedBy?:string; availableAt?:string; lastError?:string; createdAt:string };
 type OutboxItem = { id:string; eventType:string; tenantKey:string; status:string; attempts:number; createdAt:string; availableAt:string; lastError?:string };
 type BootstrapData = {
@@ -384,16 +385,101 @@ function Resources({ items, onChanged }: { items: ResourceItem[]; onChanged: () 
 
 function Users() {
   const [items,setItems]=useState<AccessUser[]>([]);const [roles,setRoles]=useState<AccessRole[]>([]);const [organizations,setOrganizations]=useState<Organization[]>([]);
-  const [email,setEmail]=useState("");const [displayName,setDisplayName]=useState("");const [password,setPassword]=useState("");const [roleId,setRoleId]=useState("");const [orgId,setOrgId]=useState("");const [message,setMessage]=useState("");
+  const [email,setEmail]=useState("");const [displayName,setDisplayName]=useState("");const [password,setPassword]=useState("");const [roleId,setRoleId]=useState("");const [orgId,setOrgId]=useState("");const [message,setMessage]=useState("");const [createOpen,setCreateOpen]=useState(false);const [creating,setCreating]=useState(false);const [createPasswordCopied,setCreatePasswordCopied]=useState(false);const [resetOpen,setResetOpen]=useState(false);const [resetUser,setResetUser]=useState<AccessUser|null>(null);const [resetPassword,setResetPassword]=useState("");const [resetPasswordCopied,setResetPasswordCopied]=useState(false);const [resetCompleted,setResetCompleted]=useState(false);const [resetting,setResetting]=useState(false);
   const load=async()=>{try{const [usersData,rolesData,orgData]=await Promise.all([apiRequest<AccessUser[]>("/api/v1/access/users"),apiRequest<AccessRole[]>("/api/v1/access/roles"),apiRequest<Organization[]>("/api/v1/access/organizations")]);setItems(usersData);setRoles(rolesData);setOrganizations(orgData);if(!roleId&&rolesData[0])setRoleId(rolesData[0].id);setMessage("");}catch(error){setMessage(error instanceof Error?error.message:"Không thể tải người dùng");}};
   useEffect(()=>{void load();},[]);
-  const create=async()=>{try{if(!roleId)throw new Error("Vui lòng chọn vai trò.");await apiRequest<AccessUser>("/api/v1/access/users",{method:"POST",body:JSON.stringify({email,displayName,password,roleIds:[roleId],orgId:orgId||null})});setEmail("");setDisplayName("");setPassword("");setMessage("Đã tạo tài khoản và gán vai trò.");await load();}catch(error){setMessage(error instanceof Error?error.message:"Không thể tạo tài khoản");}};
+  const openCreate=()=>{setMessage("");setCreatePasswordCopied(false);setCreateOpen(true);};
+  const closeCreate=()=>{if(creating)return;setCreateOpen(false);};
+  const create=async()=>{try{if(!displayName.trim()||!email.trim()||!password)throw new Error("Vui lòng nhập họ tên, email và mật khẩu.");if(!roleId)throw new Error("Vui lòng chọn vai trò.");setCreating(true);await apiRequest<AccessUser>("/api/v1/access/users",{method:"POST",body:JSON.stringify({email,displayName,password,roleIds:[roleId],orgId:orgId||null})});setEmail("");setDisplayName("");setPassword("");setCreateOpen(false);await load();setMessage("Đã tạo tài khoản và gán vai trò.");}catch(error){setMessage(error instanceof Error?error.message:"Không thể tạo tài khoản");}finally{setCreating(false);}};
   const toggle=async(item:AccessUser)=>{try{await apiRequest<void>(`/api/v1/access/users/${item.id}/enabled`,{method:"PATCH",body:JSON.stringify({enabled:!item.enabled})});await load();}catch(error){setMessage(error instanceof Error?error.message:"Không thể đổi trạng thái");}};
-  const reset=async(item:AccessUser)=>{try{const result=await apiRequest<{tempPassword:string}>(`/api/v1/access/users/${item.id}/reset-password`,{method:"POST"});setMessage(`Mật khẩu tạm thời của ${item.email}: ${result.tempPassword} — chỉ sao chép và bàn giao một lần.`);}catch(error){setMessage(error instanceof Error?error.message:"Không thể đặt lại mật khẩu");}};
-  return <><PageTitle eyebrow="Organization & access" title="Người dùng" description="Quản lý tài khoản nội bộ, trạng thái và vai trò trong deployment hiện tại." />
-    {message&&<p className="operation-message" role="status">{message}</p>}
-    <section className="panel settings-form"><div className="panel-header"><div><h2>Tạo tài khoản</h2><p>Mật khẩu ban đầu tối thiểu 12 ký tự; người dùng phải đổi sau khi được đặt lại.</p></div></div><div className="form-grid"><label>Họ và tên<input value={displayName} onChange={e=>setDisplayName(e.target.value)} /></label><label>Email<input type="email" value={email} onChange={e=>setEmail(e.target.value)} /></label><label>Mật khẩu ban đầu<input type="password" value={password} onChange={e=>setPassword(e.target.value)} /></label><label>Vai trò<select value={roleId} onChange={e=>setRoleId(e.target.value)}>{roles.map(role=><option key={role.id} value={role.id}>{role.name}</option>)}</select></label><label>Đơn vị<select value={orgId} onChange={e=>setOrgId(e.target.value)}><option value="">Không gán</option>{organizations.map(org=><option key={org.id} value={org.id}>{org.name}</option>)}</select></label></div><button className="primary-button" onClick={create}>＋ Tạo người dùng</button></section>
-    <section className="panel table-panel"><div className="data-table access-table"><div className="table-row table-head"><span>Người dùng</span><span>Vai trò</span><span>Trạng thái</span><span>Ngày tạo</span><span>Thao tác</span><span></span></div>{items.map(item=><div className="table-row" key={item.id}><span><strong>{item.displayName}</strong><small>{item.email}</small></span><span>{item.roles.join(", ")||"Chưa gán"}</span><span><em className={`state ${item.enabled?"teal":"gray"}`}>{item.enabled?"ACTIVE":"DISABLED"}</em></span><span>{new Date(item.createdAt).toLocaleDateString("vi-VN")}</span><span><button className="text-button" onClick={()=>void toggle(item)}>{item.enabled?"Vô hiệu hóa":"Kích hoạt"}</button></span><span><button className="text-button" onClick={()=>void reset(item)}>Đặt lại mật khẩu</button></span></div>)}</div></section>
+  const openReset=(item:AccessUser)=>{setMessage("");setResetUser(item);setResetPassword("");setResetPasswordCopied(false);setResetCompleted(false);setResetOpen(true);};
+  const closeReset=()=>{if(resetting)return;setResetOpen(false);setResetUser(null);setResetPassword("");setResetCompleted(false);};
+  const generateResetPassword=()=>{const alphabet="ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%";const values=new Uint32Array(16);crypto.getRandomValues(values);setResetPassword(Array.from(values,value=>alphabet[value%alphabet.length]).join(""));setResetPasswordCopied(false);setMessage("");};
+  const reset=async()=>{if(!resetUser)return;
+    try{if(resetPassword.length<12)
+      throw new Error("Mật khẩu phải có ít nhất 12 ký tự.");
+      setResetting(true);
+      await apiRequest<void>(`/api/v1/access/users/${resetUser.id}/reset-password`,{method:"POST",body:JSON.stringify({password:resetPassword})});setResetPasswordCopied(false);setResetCompleted(true);setMessage("Đã đặt lại mật khẩu cho người dùng.");}catch(error){setMessage(error instanceof Error?error.message:"Không thể đặt lại mật khẩu");}finally{setResetting(false);}};
+  const copyResetPassword=async()=>{if(!resetPassword)return;try{await navigator.clipboard.writeText(resetPassword);setResetPasswordCopied(true);}catch{setMessage("Không thể sao chép tự động. Vui lòng sao chép mật khẩu thủ công.");}};
+  const copyCreatePassword=async()=>{if(!password)return;try{await navigator.clipboard.writeText(password);setCreatePasswordCopied(true);}catch{setMessage("Không thể sao chép tự động. Vui lòng sao chép mật khẩu thủ công.");}};
+  return <>
+  <PageTitle eyebrow="Organization & access" title="Người dùng" description="Quản lý tài khoản nội bộ, trạng thái và vai trò trong deployment hiện tại."
+  action={<button className="primary-button" onClick={openCreate}>
+  <AppIcon name="plus" size={14}/>Tạo người dùng</button>} />
+  {message&&<p className="operation-message" role="status">{message}</p>}
+    <section className="panel table-panel">
+      <div className="data-table access-table">
+        <div className="table-row table-head">
+          <span>Người dùng</span>
+          <span>Vai trò</span>
+          <span>Trạng thái</span>
+          <span>Ngày tạo</span>  
+          <span>Thao tác</span>
+          <span></span>
+          </div>{items.map(item=><div className="table-row" key={item.id}>
+            <span><strong>{item.displayName}</strong>
+            <small>{item.email}</small></span>
+            <span>{item.roles.join(", ")||"Chưa gán"}</span><span><em className={`state ${item.enabled?"teal":"gray"}`}>{item.enabled?"ACTIVE":"DISABLED"}</em></span>
+            <span>{new Date(item.createdAt).toLocaleDateString("vi-VN")}</span>
+            <span>
+              <button className="text-button" onClick={()=>void toggle(item)}>{item.enabled?"Vô hiệu hóa":"Kích hoạt"}</button>
+            </span>
+            <span>
+              <button className="text-button" onClick={()=>openReset(item)}>Đặt lại mật khẩu</button>
+            </span>
+              </div>)}</div></section>
+      {createOpen&&<div className="modal-backdrop user-create-backdrop" role="presentation" onMouseDown={closeCreate}>
+        <section className="user-create-modal" role="dialog" aria-modal="true" aria-labelledby="create-user-title" onMouseDown={event=>event.stopPropagation()}><div className="panel-header">
+          <div>
+            <h2 id="create-user-title">Thêm người dùng</h2>
+            <p>Mật khẩu ban đầu tối thiểu 12 ký tự.</p></div>
+          </div>
+            <div className="user-create-form">
+              <label>Họ và tên<input autoFocus value={displayName} onChange={e=>setDisplayName(e.target.value)} /></label>
+              <label>Email<input type="email" value={email} onChange={e=>setEmail(e.target.value)} /></label>
+              <label>Mật khẩu ban đầu<div className="password-input-actions"><input type="password" value={password} onChange={e=>{setPassword(e.target.value);setCreatePasswordCopied(false);}} /><button type="button" className="secondary-button" onClick={()=>void copyCreatePassword()} disabled={!password}>{createPasswordCopied?"Đã sao chép":"Sao chép"}</button></div></label>
+              <label>Vai trò<select value={roleId} onChange={e=>setRoleId(e.target.value)}>
+                <option value="">Chọn vai trò</option>{roles.map(role=><option key={role.id} value={role.id}>{role.name}</option>)}</select></label>
+                <label>Đơn vị<select value={orgId} onChange={e=>setOrgId(e.target.value)}>
+                  <option value="">Không gán</option>{organizations.map(org=><option key={org.id} value={org.id}>{org.name}</option>)}</select></label>{message&&<p className="auth-error" role="alert">{message}</p>}
+                  <div className="user-create-actions">
+                    <button className="secondary-button" onClick={closeCreate} disabled={creating}>Hủy</button>
+                    <button className="primary-button" onClick={()=>void create()} disabled={creating}>{creating?"Đang tạo...":"Tạo người dùng"}</button>
+                  </div>
+              </div></section>
+          </div>}
+    {resetOpen && <div className="modal-backdrop user-reset-backdrop" role="presentation" onMouseDown={closeReset}>
+      <section className="user-reset-modal" role="dialog" aria-modal="true" aria-labelledby="reset-password-title" onMouseDown={event => event.stopPropagation()}>
+        <div className="panel-header">
+          <div>
+            <h2 id="reset-password-title">Đặt lại mật khẩu</h2>
+            <p>{resetUser?.email}</p>
+            </div>
+            <button className="text-button" onClick={closeReset}>Đóng</button>
+          </div>
+        <div className="user-reset-content">{resetting ? <p>Đang cập nhật mật khẩu</p> : resetCompleted ? <><p>Mật khẩu mới đã được đặt thành công. Hãy sao chép và bàn giao cho người dùng.</p>
+          <div className="temporary-password">
+              <code className="form-input">{resetPassword}
+              </code>
+              <button type="button" className="secondary-button" onClick={() => void copyResetPassword()}>{resetPasswordCopied ? "Đã sao chép" : "Sao chép"}</button></div></> : message ? 
+              <p className="auth-error" role="alert">{message}</p> : null}
+          {!resetCompleted && !resetting && <div className="reset-password-editor">
+            <label>
+              <div className="form-label">Tạo Mật khẩu mới</div>
+              <div className="reset-password-input">
+                <input autoFocus type="password" value={resetPassword} onChange={event => { setResetPassword(event.target.value); setResetPasswordCopied(false); }} placeholder="Tối thiểu 12 ký tự" />
+                <button type="button" className="secondary-button generate-password-button" onClick={generateResetPassword}>Tự động tạo</button>
+                </div>
+            </label>
+            <small className="reset-password-hint">Mật khẩu phải có ít nhất 12 ký tự.</small>
+          </div>}
+          <div className="user-reset-actions">
+            {!resetCompleted && <button className="primary-button" onClick={() => void reset()} disabled={resetting}>Đặt lại mật khẩu</button>}
+            {resetCompleted && <button className="primary-button" onClick={closeReset}>Đóng</button>}
+          </div>
+        </div>
+      </section>
+    </div>}
   </>;
 }
 
@@ -466,10 +552,29 @@ function Settings({ values, onSave }: { values: Record<string,string>; onSave: (
   const [tier,setTier]=useState(values["environment.tier"] ?? "standard");
   const [region,setRegion]=useState(values["environment.region"] ?? "Ho Chi Minh City");
   const [url,setUrl]=useState(values["environment.publicUrl"] ?? "https://corejava.sgodata.com");
+  const [mfaConfig,setMfaConfig]=useState<MfaConfig|null>(null);
+  const [mfaLoading,setMfaLoading]=useState(true);
+  const [mfaSaving,setMfaSaving]=useState(false);
+  const [mfaMessage,setMfaMessage]=useState("");
+
+  useEffect(()=>{void apiRequest<MfaConfig>("/api/v1/auth/mfa/config").then(config=>{setMfaConfig({enabled:Boolean(config.enabled),requireAdmin:Boolean(config.requireAdmin),allowBootstrap:Boolean(config.allowBootstrap)});}).catch(error=>{setMfaMessage(error instanceof Error?error.message:"Không thể tải cấu hình MFA.");}).finally(()=>setMfaLoading(false));},[]);
+
+  const toggleMfa=async()=>{
+    if(!mfaConfig)return;
+    setMfaSaving(true);setMfaMessage("");
+    try {
+      const nextConfig={...mfaConfig,enabled:!mfaConfig.enabled};
+      await apiRequest<MfaConfig>("/api/v1/auth/mfa/config",{method:"PUT",body:JSON.stringify(nextConfig)});
+      setMfaConfig(nextConfig);
+      setMfaMessage(`Đã ${nextConfig.enabled?"bật":"tắt"} MFA.`);
+    } catch(error) { setMfaMessage(error instanceof Error?error.message:"Không thể cập nhật cấu hình MFA."); }
+    finally { setMfaSaving(false); }
+  };
+
   return (
     <>
       <PageTitle eyebrow="Deployment configuration" title="Cấu hình" description="Thông tin môi trường và các chính sách vận hành đang có hiệu lực." action={<button className="primary-button" onClick={() => onSave([{key:"environment.name",value:name},{key:"environment.tier",value:tier},{key:"environment.region",value:region},{key:"environment.publicUrl",value:url}])}>Lưu thay đổi</button>} />
-      <div className="settings-layout single"><section className="panel settings-form"><h2>Thông tin deployment</h2><p>Thay đổi được lưu vào PostgreSQL và ghi audit. Tenant kỹ thuật không được trình bày như một chức năng SaaS.</p><label>Tên môi trường<input value={name} onChange={e=>setName(e.target.value)} /></label><div className="form-grid"><label>Service tier<select value={tier} onChange={e=>setTier(e.target.value)}><option value="pilot">Pilot</option><option value="standard">Standard</option><option value="critical">Critical</option></select></label><label>Khu vực<input value={region} onChange={e=>setRegion(e.target.value)} /></label></div><label>Public base URL<input value={url} onChange={e=>setUrl(e.target.value)} /></label></section></div>
+      <div className="settings-layout single"><section className="panel settings-form"><h2>Thông tin deployment</h2><p>Thay đổi được lưu vào PostgreSQL và ghi audit. Tenant kỹ thuật không được trình bày như một chức năng SaaS.</p><label>Tên môi trường<input value={name} onChange={e=>setName(e.target.value)} /></label><div className="form-grid"><label>Service tier<select value={tier} onChange={e=>setTier(e.target.value)}><option value="pilot">Pilot</option><option value="standard">Standard</option><option value="critical">Critical</option></select></label><label>Khu vực<input value={region} onChange={e=>setRegion(e.target.value)} /></label></div><label>Public base URL<input value={url} onChange={e=>setUrl(e.target.value)} /></label></section><section className="panel settings-form"><h2>Xác thực đa yếu tố</h2><p>Quản lý MFA cho tài khoản quản trị. Thay đổi được ghi audit và áp dụng cho các lần đăng nhập tiếp theo.</p><div className="setting-toggle"><div><strong>MFA</strong><span>{mfaLoading?"Đang tải cấu hình...":mfaConfig?.enabled?"Đang bật":"Đang tắt"}</span></div><button type="button" className={`toggle ${mfaConfig?.enabled?"on":""}`} aria-label={mfaConfig?.enabled?"Tắt MFA":"Bật MFA"} aria-pressed={mfaConfig?.enabled??false} disabled={mfaLoading||mfaSaving||!mfaConfig} onClick={()=>void toggleMfa()}><i /></button></div>{mfaMessage&&<p className="operation-message" role="status">{mfaMessage}</p>}</section></div>
     </>
   );
 }
