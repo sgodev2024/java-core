@@ -91,9 +91,11 @@ Phần quyết định kỹ thuật được cập nhật có chủ đích trong
 | 2026-08-27 | [`195c5dc`](https://github.com/sgodev2024/java-core/commit/195c5dc2ce9392b12d0af044472a81008ecd305f) | change css gender | NaturalCare | 2 |
 | 2026-08-27 | [`565ec44`](https://github.com/sgodev2024/java-core/commit/565ec44c9a34f439f4a9a8cc084b2dd734c2827f) | Update gen password | NaturalCare | 2 |
 | 2026-08-27 | [`087c35c`](https://github.com/sgodev2024/java-core/commit/087c35c26b19823d2b3e96e6fefa53f7fc19fc71) | Update css | NaturalCare | 2 |
+| 2026-08-27 | [`349bd84`](https://github.com/sgodev2024/java-core/commit/349bd8467bfebeaa84dc3c245fb28e6a58d24828) | ci: skip tests and fix build for user profile workflow | DatNguyenTien | 1 |
 | 2026-08-27 | [`0e75752`](https://github.com/sgodev2024/java-core/commit/0e75752bfd3c521cea229373a0e248160f3bca3d) | ci: skip tests and fix build for workflow | DatNguyenTien | 1 |
 | 2026-08-27 | [`7203fea`](https://github.com/sgodev2024/java-core/commit/7203fea2e3f2ce97a14a0065474ec57be18c6686) | update mfa toggling | DatNguyenTien | 2 |
 | 2026-08-27 | [`3a19183`](https://github.com/sgodev2024/java-core/commit/3a19183a08b0cada65a74249d9f9d13162de8e0e) | fix: update logic for MFA feature | DatNguyenTien | 1 |
+| 2026-08-27 | [`d979b5d`](https://github.com/sgodev2024/java-core/commit/d979b5d551a69146b011790481838cf9ddb23b6f) | feat: add user profile | DatNguyenTien | 3 |
 | 2026-08-26 | [`3af67f1`](https://github.com/sgodev2024/java-core/commit/3af67f19d10127a275b818e8adb28f068948bea7) | ci: add chmod +x mvnw to backend workflow | DatNguyenTien | 1 |
 | 2026-08-26 | [`b414179`](https://github.com/sgodev2024/java-core/commit/b4141796ef81640f461cac4b3ea5d68647277ffa) | update changepass | NaturalCare | 4 |
 | 2026-08-26 | [`f9b7bb8`](https://github.com/sgodev2024/java-core/commit/f9b7bb82c4a579e2edc028f7bd118062e5cb23f0) | feat: update mfa toggling | DatNguyenTien | 5 |
@@ -189,6 +191,14 @@ Phần quyết định kỹ thuật được cập nhật có chủ đích trong
 - `M` `frontend/app/globals.css`
 - `M` `frontend/app/page.tsx`
 
+### 2026-08-27 — ci: skip tests and fix build for user profile workflow
+
+- Commit: [`349bd8467bfebeaa84dc3c245fb28e6a58d24828`](https://github.com/sgodev2024/java-core/commit/349bd8467bfebeaa84dc3c245fb28e6a58d24828)
+- Tác giả: DatNguyenTien
+- Phạm vi file:
+
+- `M` `.github/workflows/backend-ci.yml`
+
 ### 2026-08-27 — ci: skip tests and fix build for workflow
 
 - Commit: [`0e75752bfd3c521cea229373a0e248160f3bca3d`](https://github.com/sgodev2024/java-core/commit/0e75752bfd3c521cea229373a0e248160f3bca3d)
@@ -213,6 +223,16 @@ Phần quyết định kỹ thuật được cập nhật có chủ đích trong
 - Phạm vi file:
 
 - `A` `backend/src/main/resources/db/migration/V21__update_system_config_defaults.sql`
+
+### 2026-08-27 — feat: add user profile
+
+- Commit: [`d979b5d551a69146b011790481838cf9ddb23b6f`](https://github.com/sgodev2024/java-core/commit/d979b5d551a69146b011790481838cf9ddb23b6f)
+- Tác giả: DatNguyenTien
+- Phạm vi file:
+
+- `M` `backend/src/main/java/vn/coreplatform/identity/AuthController.java`
+- `M` `frontend/app/globals.css`
+- `M` `frontend/app/page.tsx`
 
 ### 2026-08-26 — ci: add chmod +x mvnw to backend workflow
 
