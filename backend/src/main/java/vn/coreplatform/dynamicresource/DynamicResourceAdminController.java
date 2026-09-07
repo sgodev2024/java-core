@@ -22,6 +22,7 @@ import vn.coreplatform.permission.PermissionService;
  */
 @RestController @RequestMapping("/api/v1/dynamic")
 public class DynamicResourceAdminController {
+  
   private final JdbcTemplate jdbc;
   private final PermissionService permissions;
   private final AuditService audits;
@@ -48,7 +49,8 @@ public class DynamicResourceAdminController {
    * thay đổi PHÁ VỠ (xóa field / đổi type / thêm required) chỉ được lưu thành pending
    * và chờ POST .../migration-confirmed — record vẫn validate theo schema cũ.
    */
-  @PostMapping("/{resourceKey}/schema") @Transactional
+  @PostMapping("/{resourceKey}/schema") 
+  @Transactional
   public DynamicResourceController.Definition updateSchema(@PathVariable String resourceKey, @RequestBody SchemaUpdate request, Authentication auth) {
     permissions.require(auth, "DYNAMIC_DEFINITION", "UPDATE", null);
     var tenantId = main.tenantOf(auth);
@@ -72,7 +74,8 @@ public class DynamicResourceAdminController {
   }
 
   /** E9-S01: xác nhận đã chạy migration — mới áp dụng schema phá vỡ. */
-  @PostMapping("/{resourceKey}/migration-confirmed") @Transactional
+  @PostMapping("/{resourceKey}/migration-confirmed") 
+  @Transactional
   public DynamicResourceController.Definition confirmMigration(@PathVariable String resourceKey, Authentication auth) {
     permissions.require(auth, "ACCESS_ADMIN", "MANAGE", null);
     var tenantId = main.tenantOf(auth);
@@ -91,7 +94,9 @@ public class DynamicResourceAdminController {
    * E9-S04: governed index — client chỉ gửi field key; index name + expression SQL do platform
    * sinh từ template, không có đường nào inject SQL. Index reproducible (tên deterministic).
    */
-  @PostMapping("/{resourceKey}/indexes") @ResponseStatus(HttpStatus.CREATED) @Transactional
+  @PostMapping("/{resourceKey}/indexes") 
+  @ResponseStatus(HttpStatus.CREATED) 
+  @Transactional
   public IndexView createIndex(@PathVariable String resourceKey, @org.springframework.validation.annotation.Validated @RequestBody IndexRequest request, Authentication auth) {
     permissions.require(auth, "DYNAMIC_DEFINITION", "UPDATE", null);
     var tenantId = main.tenantOf(auth);

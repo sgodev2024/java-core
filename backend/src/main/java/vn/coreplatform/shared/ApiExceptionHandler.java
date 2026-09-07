@@ -11,7 +11,9 @@ import org.springframework.web.bind.annotation.*;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
+  
   static final Logger log=LoggerFactory.getLogger(ApiExceptionHandler.class);
+
   @ExceptionHandler(ApiProblem.class)
   ResponseEntity<ProblemDetail> handle(ApiProblem error, HttpServletRequest request) {
     var problem = ProblemDetail.forStatusAndDetail(error.status, error.getMessage());
@@ -20,6 +22,7 @@ public class ApiExceptionHandler {
     problem.setProperty("path", request.getRequestURI()); problem.setProperty("correlationId", CorrelationIdFilter.current());
     return ResponseEntity.status(error.status).body(problem);
   }
+
   @ExceptionHandler(MethodArgumentNotValidException.class)
   ResponseEntity<ProblemDetail> validation(MethodArgumentNotValidException error) {
     var p = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Dữ liệu đầu vào không hợp lệ"); p.setTitle("VALIDATION_FAILED");
@@ -27,6 +30,7 @@ public class ApiExceptionHandler {
     p.setProperty("correlationId", CorrelationIdFilter.current());
     return ResponseEntity.badRequest().body(p);
   }
+
   @ExceptionHandler(Exception.class)
   ResponseEntity<ProblemDetail> unexpected(Exception error, HttpServletRequest request) {
     log.error("Unhandled error correlationId={} uri={} type={}", CorrelationIdFilter.current(), request.getRequestURI(), error.getClass().getName(), error);
@@ -37,7 +41,8 @@ public class ApiExceptionHandler {
     return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(p);
   }
   public static class ApiProblem extends RuntimeException {
-    final HttpStatus status; final String code;
+    final HttpStatus status; 
+    final String code;
     public ApiProblem(HttpStatus status, String code, String message) { super(message); this.status=status; this.code=code; }
   }
 }

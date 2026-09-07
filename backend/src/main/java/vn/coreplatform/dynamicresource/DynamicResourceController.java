@@ -22,7 +22,21 @@ import vn.coreplatform.permission.RequirePermission;
 
 @RestController @RequestMapping("/api/v1/dynamic")
 public class DynamicResourceController {
-  private final JdbcTemplate jdbc;private final PermissionService permissions;private final ResourceRegistry resources;private final vn.coreplatform.audit.AuditService audits;private final vn.coreplatform.eventing.OutboxService outbox; public DynamicResourceController(JdbcTemplate jdbc,PermissionService permissions,ResourceRegistry resources,vn.coreplatform.audit.AuditService audits,vn.coreplatform.eventing.OutboxService outbox){this.jdbc=jdbc;this.permissions=permissions;this.resources=resources;this.audits=audits;this.outbox=outbox;}
+  
+  private final JdbcTemplate jdbc;
+  private final PermissionService permissions;
+  private final ResourceRegistry resources;
+  private final vn.coreplatform.audit.AuditService audits;
+  private final vn.coreplatform.eventing.OutboxService outbox; 
+
+  public DynamicResourceController(JdbcTemplate jdbc,PermissionService permissions,ResourceRegistry resources,vn.coreplatform.audit.AuditService audits,vn.coreplatform.eventing.OutboxService outbox){
+    this.jdbc=jdbc;
+    this.permissions=permissions;
+    this.resources=resources;
+    this.audits=audits;
+    this.outbox=outbox;
+  }
+
   public record Definition(UUID id,String resourceKey,String name,int version,JsonNode schema,String status,String dataClassification,Instant updatedAt){}
   public record RecordItem(UUID id,String resourceKey,JsonNode data,int version,String status,UUID ownerSubjectId,Instant createdAt,Instant updatedAt){}
   public record Revision(UUID id,int version,String operation,JsonNode data,UUID actorId,Instant occurredAt){}
@@ -32,24 +46,41 @@ public class DynamicResourceController {
   public record ImportResult(int imported,int failed,List<String> errors){}
 
   @RequirePermission(resource = "DYNAMIC_DEFINITION", action = "READ")
-  @GetMapping("/definitions") List<Definition> definitions(Authentication auth){permissions.require(auth,"DYNAMIC_DEFINITION","READ",null);var t=tenant(auth);return jdbc.query("select * from dynamic_resource.definition where tenant_id=? order by name",(r,n)->definition(r),t);}
-  @PostMapping("/definitions") @ResponseStatus(HttpStatus.CREATED) @Transactional Definition createDefinition(@Valid @RequestBody DefinitionCreate request,Authentication auth){
-    permissions.require(auth,"DYNAMIC_DEFINITION","CREATE",null); validateSchema(request.schema());
+  @GetMapping("/definitions") 
+  List<Definition> definitions(Authentication auth){
+
+    permissions.require(auth,"DYNAMIC_DEFINITION","READ",null);
+    var t=tenant(auth);
+    return jdbc.query("select * from dynamic_resource.definition where tenant_id=? order by name",(r,n)->definition(r),t);
+  }
+
+  @PostMapping("/definitions") @ResponseStatus(HttpStatus.CREATED) 
+  @Transactional 
+  Definition createDefinition(@Valid @RequestBody DefinitionCreate request,Authentication auth){
+
+    permissions.require(auth,"DYNAMIC_DEFINITION","CREATE",null);
+    validateSchema(request.schema());
     // E4-S05 classification gate: definition thiếu classification được phê duyệt không bao giờ ACTIVE
     var approved=request.classification()!=null&&ResourceRegistry.APPROVED_CLASSIFICATIONS.contains(request.classification());
     var id=UUID.randomUUID(); var t=tenant(auth); var actor=account(auth);
-    try{jdbc.update("insert into dynamic_resource.definition(id,tenant_id,resource_key,name,schema_json,data_classification,status,created_by) values(?,?,?,?,?::jsonb,?,?,?)",
-      id,t,request.resourceKey(),request.name().trim(),request.schema().toString(),approved?request.classification():null,approved?"ACTIVE":"PENDING",actor);}
-    catch(Exception e){throw new ApiProblem(HttpStatus.CONFLICT,"DEFINITION_EXISTS","Resource key đã tồn tại");}
+
+    try{
+      jdbc.update("insert into dynamic_resource.definition(id,tenant_id,resource_key,name,schema_json,data_classification,status,created_by) values(?,?,?,?,?::jsonb,?,?,?)",
+      id,t,request.resourceKey(),request.name().trim(),request.schema().toString(),approved?request.classification():null,approved?"ACTIVE":"PENDING",actor);
+    }catch(Exception e){
+      throw new ApiProblem(HttpStatus.CONFLICT,"DEFINITION_EXISTS","Resource key đã tồn tại");
+    }
     resources.register(new ResourceDescriptor(request.resourceKey(),request.name().trim(),"dynamic-resource","DYNAMIC","v1",
-      List.of("READ","CREATE","UPDATE","DELETE"),"ALWAYS",approved?request.classification():null));
+                        List.of("READ","CREATE","UPDATE","DELETE"),"ALWAYS",approved?request.classification():null));
     audit(auth,"DYNAMIC_DEFINITION_CREATED","DYNAMIC_DEFINITION",id);
     if(!approved) audit(auth,"DYNAMIC_DEFINITION_PENDING_CLASSIFICATION","DYNAMIC_DEFINITION",id);
     return getDefinition(id,t);
   }
 
   /** E4-S05: phê duyệt classification để kích hoạt definition đang PENDING. */
-  @PostMapping("/{resourceKey}/classification") @Transactional Definition classify(@PathVariable String resourceKey,@Valid @RequestBody ClassificationUpdate request,Authentication auth){
+  @PostMapping("/{resourceKey}/classification") 
+  @Transactional 
+  Definition classify(@PathVariable String resourceKey,@Valid @RequestBody ClassificationUpdate request,Authentication auth){
     permissions.require(auth,"ACCESS_ADMIN","MANAGE",null);
     var t=tenant(auth);
     var changed=jdbc.update("update dynamic_resource.definition set data_classification=?, status='ACTIVE', updated_at=now() where tenant_id=? and resource_key=?",
@@ -59,14 +90,21 @@ public class DynamicResourceController {
     audit(auth,"DYNAMIC_CLASSIFICATION_APPROVED",resourceKey,UUID.nameUUIDFromBytes(resourceKey.getBytes()));
     return jdbc.queryForObject("select * from dynamic_resource.definition where tenant_id=? and resource_key=?",(r,n)->definition(r),t,resourceKey);
   }
+
   @RequirePermission(resource = "DYNAMIC_RECORD", action = "READ")
-  @GetMapping("/{resourceKey}/records") PageResult records(@PathVariable String resourceKey,@RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="25") int size,@RequestParam(defaultValue="") String q,Authentication auth){
+  @GetMapping("/{resourceKey}/records") 
+  PageResult records(@PathVariable String resourceKey,@RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="25") int size,@RequestParam(defaultValue="") String q,Authentication auth){
     var scope=permissions.scope(auth,"DYNAMIC_RECORD","READ");if(!scope.allowed())throw new ApiProblem(HttpStatus.FORBIDDEN,"PERMISSION_DENIED","Không có quyền đọc record");var t=tenant(auth); var d=definitionByKey(resourceKey,t); int safeSize=Math.max(1,Math.min(size,100)),safePage=Math.max(page,0); String search="%"+q.toLowerCase(Locale.ROOT)+"%";UUID owner=scope.ownerOnly()?account(auth):null;
     long total=jdbc.queryForObject("select count(*) from dynamic_resource.record where tenant_id=? and definition_id=? and status='ACTIVE' and (?::uuid is null or owner_subject_id=?) and (?='' or lower(data::text) like ?)",Long.class,t,d.id(),owner,owner,q,search);
     var items=jdbc.query("select r.*,? resource_key from dynamic_resource.record r where tenant_id=? and definition_id=? and status='ACTIVE' and (?::uuid is null or owner_subject_id=?) and (?='' or lower(data::text) like ?) order by updated_at desc,id limit ? offset ?",(r,n)->record(r),resourceKey,t,d.id(),owner,owner,q,search,safeSize,safePage*safeSize);
     return new PageResult(items,safePage,safeSize,total);
   }
-  @PostMapping("/{resourceKey}/records") @ResponseStatus(HttpStatus.CREATED) @Transactional RecordItem create(@PathVariable String resourceKey,@RequestBody JsonNode data,Authentication auth){JsonNode customAttributes=data==null?null:data.path("_custom");var cleanData=data==null?null:stripCustom(data);
+
+  @PostMapping("/{resourceKey}/records") 
+  @ResponseStatus(HttpStatus.CREATED) 
+  @Transactional 
+  RecordItem create(@PathVariable String resourceKey,@RequestBody JsonNode data,Authentication auth){
+    JsonNode customAttributes=data==null?null:data.path("_custom");var cleanData=data==null?null:stripCustom(data);
     var actor=account(auth);permissions.require(auth,"DYNAMIC_RECORD","CREATE",actor);var t=tenant(auth);var d=definitionByKey(resourceKey,t);validateData(d.schema(),data);var id=UUID.randomUUID();
     jdbc.update("insert into dynamic_resource.record(id,tenant_id,definition_id,data,custom_attributes,owner_subject_id,created_by) values(?,?,?,?::jsonb,?::jsonb,?,?)",id,t,d.id(),cleanData.toString(),safeCustom(d.schema(),customAttributes),actor,actor);
     jdbc.update("insert into dynamic_resource.revision(tenant_id,record_id,record_version,operation,data,actor_id) values(?,?,1,'CREATE',?::jsonb,?)",t,id,data.toString(),actor);
@@ -77,7 +115,8 @@ public class DynamicResourceController {
   }
   /** E11-S01: full-text search dùng tsvector + GIN index. */
   @RequirePermission(resource = "DYNAMIC_RECORD", action = "READ")
-  @GetMapping("/{resourceKey}/search") PageResult searchRecords(@PathVariable String resourceKey,@RequestParam String q,@RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="25") int size,Authentication auth){
+  @GetMapping("/{resourceKey}/search") 
+  PageResult searchRecords(@PathVariable String resourceKey,@RequestParam String q,@RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="25") int size,Authentication auth){
     permissions.require(auth,"DYNAMIC_RECORD","READ",null);var t=tenant(auth);var d=definitionByKey(resourceKey,t);
     int safeSize=Math.max(1,Math.min(size,100)),safePage=Math.max(page,0);
     long total=jdbc.queryForObject("select count(*) from dynamic_resource.record where tenant_id=? and definition_id=? and status='ACTIVE' and search_vector @@ plainto_tsquery('simple',?)",Long.class,t,d.id(),q);
@@ -85,7 +124,12 @@ public class DynamicResourceController {
     return new PageResult(items,safePage,safeSize,total);
   }
 
-  @GetMapping("/{resourceKey}/records/{id}") RecordItem get(@PathVariable String resourceKey,@PathVariable UUID id,Authentication auth){var item=getRecord(id,resourceKey,tenant(auth));permissions.require(auth,"DYNAMIC_RECORD","READ",item.ownerSubjectId());return item;}
+  @GetMapping("/{resourceKey}/records/{id}") 
+  RecordItem get(@PathVariable String resourceKey,@PathVariable UUID id,Authentication auth){
+    var item=getRecord(id,resourceKey,tenant(auth));permissions.require(auth,"DYNAMIC_RECORD","READ",item.ownerSubjectId());
+    return item;
+  }
+
   @PutMapping("/{resourceKey}/records/{id}") @Transactional RecordItem update(@PathVariable String resourceKey,@PathVariable UUID id,@RequestBody JsonNode data,@RequestHeader("If-Match") int expectedVersion,Authentication auth){
     var current=getRecord(id,resourceKey,tenant(auth));permissions.require(auth,"DYNAMIC_RECORD","UPDATE",current.ownerSubjectId());var t=tenant(auth);var d=definitionByKey(resourceKey,t);validateData(d.schema(),data);int next=expectedVersion+1;
     int changed=jdbc.update("update dynamic_resource.record set data=?::jsonb,record_version=?,updated_at=now() where id=? and tenant_id=? and definition_id=? and record_version=? and status='ACTIVE'",data.toString(),next,id,t,d.id(),expectedVersion);

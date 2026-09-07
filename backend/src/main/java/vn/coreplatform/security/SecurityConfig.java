@@ -24,24 +24,58 @@ public class SecurityConfig {
    * E3-S02: encode mặc định Argon2id; hash {bcrypt} cũ vẫn verify được và được rehash
    * khi đăng nhập thành công (xử lý trong AuthController).
    */
-  @Bean PasswordEncoder passwordEncoder(){
+  @Bean 
+  PasswordEncoder passwordEncoder(){
     var encoders = new LinkedHashMap<String, PasswordEncoder>();
     encoders.put("argon2", Argon2PasswordEncoder.defaultsForSpringSecurity_v5_8());
     encoders.put("bcrypt", new BCryptPasswordEncoder(12));
     return new DelegatingPasswordEncoder("argon2", encoders);
   }
-  @Bean CorsConfigurationSource corsConfigurationSource(){ var c=new CorsConfiguration(); c.setAllowedOriginPatterns(List.of("http://localhost:*","http://127.0.0.1:*","https://*.chatgpt.site","https://corejava.sgodata.com")); c.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS")); c.setAllowedHeaders(List.of("Authorization","Content-Type","X-Correlation-Id")); c.setAllowCredentials(false); var s=new UrlBasedCorsConfigurationSource(); s.registerCorsConfiguration("/**",c); return s; }
-  @Bean SecurityFilterChain security(HttpSecurity http, TokenFilter tokenFilter) throws Exception { return http.csrf(x->x.disable()).cors(x->{}).sessionManagement(x->x.sessionCreationPolicy(SessionCreationPolicy.STATELESS)).authorizeHttpRequests(x->x.requestMatchers("/api/v1/auth/login","/api/v1/auth/mfa","/api/v1/auth/refresh","/actuator/health/**","/v3/api-docs/**","/swagger-ui/**").permitAll().anyRequest().authenticated()).addFilterBefore(tokenFilter, UsernamePasswordAuthenticationFilter.class).build(); }
 
-  @Component static class TokenFilter extends OncePerRequestFilter {
-    private final JdbcTemplate jdbc; TokenFilter(JdbcTemplate jdbc){this.jdbc=jdbc;}
-    @Override protected void doFilterInternal(HttpServletRequest req,HttpServletResponse res,FilterChain chain)throws ServletException,IOException{
+  @Bean 
+  CorsConfigurationSource corsConfigurationSource(){ 
+    var c=new CorsConfiguration(); 
+    c.setAllowedOriginPatterns(List.of("http://localhost:*","http://127.0.0.1:*","https://*.chatgpt.site","https://corejava.sgodata.com")); 
+    c.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS")); 
+    c.setAllowedHeaders(List.of("Authorization","Content-Type","X-Correlation-Id")); 
+    c.setAllowCredentials(false); 
+    var s=new UrlBasedCorsConfigurationSource(); 
+    s.registerCorsConfiguration("/**",c); 
+    return s; 
+  }
+
+  @Bean 
+  SecurityFilterChain security(HttpSecurity http, TokenFilter tokenFilter) throws Exception { 
+    return http.csrf(x->x.disable()).cors(x->{})
+    .sessionManagement(x->x.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+    .authorizeHttpRequests(
+        x->x.requestMatchers("/api/v1/auth/login",
+                              "/api/v1/auth/mfa",
+                              "/api/v1/auth/refresh",
+                              "/actuator/health/**",
+                              "/v3/api-docs/**",
+                              "/swagger-ui/**").permitAll()
+                              .anyRequest().authenticated()).addFilterBefore(tokenFilter, UsernamePasswordAuthenticationFilter.class).build(); 
+  }
+
+  @Component 
+  static class TokenFilter extends OncePerRequestFilter {
+    
+    private final JdbcTemplate jdbc; 
+    
+    TokenFilter(JdbcTemplate jdbc){
+      this.jdbc=jdbc;
+    }
+
+    @Override 
+    protected void doFilterInternal(HttpServletRequest req,HttpServletResponse res,FilterChain chain)throws ServletException,IOException{
       var header=req.getHeader(HttpHeaders.AUTHORIZATION);
       if(header!=null&&header.startsWith("Bearer ")){
         var token=header.substring(7);
         if(token.startsWith("cpa_")) authenticateApiKey(token);
         else authenticateSession(token);
       }
+
       var auth=SecurityContextHolder.getContext().getAuthentication();
       // E3-S02: mật khẩu tạm (admin reset) chỉ cho phép đổi mật khẩu, chặn mọi thao tác khác
       if(auth!=null&&auth.getDetails() instanceof Map<?,?> details&&Boolean.TRUE.equals(details.get("mustChange"))&&!req.getRequestURI().startsWith("/api/v1/auth/")){
@@ -51,6 +85,7 @@ public class SecurityConfig {
       }
       chain.doFilter(req,res);
     }
+
     private void authenticateSession(String token){
       var hash=sha256(token);
       jdbc.query("""
@@ -65,6 +100,7 @@ public class SecurityConfig {
             SecurityContextHolder.getContext().setAuthentication(auth);
           } return null;},hash);
     }
+
     private void authenticateApiKey(String token){
       var parts=token.split("_");
       if(parts.length!=3) return;
@@ -82,5 +118,12 @@ public class SecurityConfig {
           } return null;},parts[1],hash);
     }
   }
-  public static String sha256(String value){try{return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8)));}catch(Exception e){throw new IllegalStateException(e);}}
+
+  public static String sha256(String value){
+    try{
+      return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8)));
+    }catch(Exception e){
+      throw new IllegalStateException(e);
+    }
+  }
 }

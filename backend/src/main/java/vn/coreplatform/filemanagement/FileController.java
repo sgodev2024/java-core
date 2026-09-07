@@ -18,7 +18,8 @@ import vn.coreplatform.permission.PermissionService;
  * E8: upload qua session (STAGING -> SCANNING -> ACTIVE sau scan CLEAN); endpoint /files cũ là
  * đường tắt đi đủ 3 bước trong một lời gọi. Reconcile + staging-cleanup chỉ dành cho Platform Admin.
  */
-@RestController @RequestMapping("/api/v1/files")
+@RestController 
+@RequestMapping("/api/v1/files")
 public class FileController {
   private final JdbcTemplate jdbc;private final PermissionService permissions;private final vn.coreplatform.audit.AuditService audits;private final OutboxService outbox;private final FileStorageService storage;private final ResourceRegistry resources;
   public FileController(JdbcTemplate jdbc,PermissionService permissions,vn.coreplatform.audit.AuditService audits,OutboxService outbox,FileStorageService storage,ResourceRegistry resources){this.jdbc=jdbc;this.permissions=permissions;this.audits=audits;this.outbox=outbox;this.storage=storage;this.resources=resources;}

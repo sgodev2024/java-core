@@ -15,7 +15,13 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController @RequestMapping("/api/v1/access")
 public class AccessManagementController {
-  private final JdbcTemplate jdbc;private final PasswordEncoder passwords;private final PermissionService permissions;private final vn.coreplatform.audit.AuditService audits;private final vn.coreplatform.kernel.ResourceRegistry resources;
+  private final JdbcTemplate jdbc;
+  private final PasswordEncoder passwords;
+  private final PermissionService permissions;
+  private final vn.coreplatform.audit.AuditService audits;
+  private final vn.coreplatform.kernel.ResourceRegistry resources;
+
+
   public AccessManagementController(JdbcTemplate jdbc,PasswordEncoder passwords,PermissionService permissions,vn.coreplatform.audit.AuditService audits,vn.coreplatform.kernel.ResourceRegistry resources){this.jdbc=jdbc;this.passwords=passwords;this.permissions=permissions;this.audits=audits;this.resources=resources;}
   public record UserItem(UUID id,String email,String displayName,boolean enabled,List<String> roles,Instant createdAt){}
   public record RoleItem(UUID id,String code,String name,boolean systemRole){}
@@ -33,7 +39,19 @@ public class AccessManagementController {
   public record ServiceAccountItem(UUID id,String name,String prefix,String accountEmail,String status,Instant lastUsedAt,Instant createdAt){}
   public record ApiKeyIssued(UUID id,String name,String apiKey,String notice){}
 
-  @GetMapping("/users") List<UserItem> users(Authentication a){manage(a);var t=permissions.tenant(a);return jdbc.query("select a.id,a.email,a.display_name,a.enabled,a.created_at,coalesce(string_agg(r.code,',' order by r.code),'') roles from identity.account a left join identity.account_role ar on ar.tenant_id=a.tenant_id and ar.account_id=a.id left join identity.role r on r.id=ar.role_id where a.tenant_id=? group by a.id order by a.email",(r,n)->new UserItem(r.getObject("id",UUID.class),r.getString("email"),r.getString("display_name"),r.getBoolean("enabled"),r.getString("roles").isBlank()?List.of():List.of(r.getString("roles").split(",")),r.getTimestamp("created_at").toInstant()),t);}
+  @GetMapping("/users") 
+  List<UserItem> users(Authentication a){
+    manage(a);var t=permissions.tenant(a);
+    return jdbc.query("select a.id,a.email,a.display_name,a.enabled,a.created_at,coalesce(string_agg(r.code,',' order by r.code),'') roles from identity.account a left join identity.account_role ar on ar.tenant_id=a.tenant_id and ar.account_id=a.id left join identity.role r on r.id=ar.role_id where a.tenant_id=? group by a.id order by a.email",
+    (r,n)->new UserItem(
+                    r.getObject("id",UUID.class),
+                    r.getString("email"),
+                    r.getString("display_name"),
+                    r.getBoolean("enabled"),
+                    r.getString("roles").isBlank()?List.of():List.of(r.getString("roles").split(",")),
+                    r.getTimestamp("created_at").toInstant()),t);
+  }
+  
   @GetMapping("/roles") List<RoleItem> roles(Authentication a){manage(a);return jdbc.query("select id,code,name,system_role from identity.role where tenant_id=? order by name",(r,n)->new RoleItem(r.getObject("id",UUID.class),r.getString("code"),r.getString("name"),r.getBoolean("system_role")),permissions.tenant(a));}
   @GetMapping("/policies") List<PolicyItem> policies(Authentication a){manage(a);return jdbc.query("select * from identity.policy where tenant_id=? order by code,version desc",(r,n)->new PolicyItem(r.getObject("id",UUID.class),r.getString("code"),r.getString("resource_type"),r.getString("action"),r.getString("effect"),r.getString("condition_json"),r.getInt("version"),r.getBoolean("enabled")),permissions.tenant(a));}
   @PostMapping("/users") @ResponseStatus(HttpStatus.CREATED) @Transactional UserItem createUser(@Valid @RequestBody UserCreate x,Authentication a){manage(a);var t=permissions.tenant(a);var id=UUID.randomUUID();try{jdbc.update("insert into identity.account(id,tenant_id,email,display_name,password_hash,password_algo,role,org_id) values(?,?,?,?,?,'ARGON2ID','APPLICATION_USER',?)",id,t,x.email().trim().toLowerCase(),x.displayName().trim(),passwords.encode(x.password()),x.orgId());for(var role:x.roleIds()){int c=jdbc.update("insert into identity.account_role(tenant_id,account_id,role_id) select ?,?,id from identity.role where id=? and tenant_id=?",t,id,role,t);if(c==0)throw new ApiProblem(HttpStatus.BAD_REQUEST,"INVALID_ROLE","Role không thuộc tenant");}}catch(ApiProblem e){throw e;}catch(Exception e){throw new ApiProblem(HttpStatus.CONFLICT,"USER_EXISTS","Email đã tồn tại hoặc org không hợp lệ");}revision(t);audit(a,"USER_CREATED",id);return users(a).stream().filter(u->u.id().equals(id)).findFirst().orElseThrow();}
@@ -68,13 +86,20 @@ public class AccessManagementController {
   }
 
   // ---- E3-S01: organization trong tenant của caller ----
-  @GetMapping("/organizations") List<OrganizationItem> organizations(Authentication a){manage(a);var t=permissions.tenant(a);
+  @GetMapping("/organizations") List<OrganizationItem> organizations(Authentication a){
+    manage(a);var t=permissions.tenant(a);
     return jdbc.query("""
         select o.id,o.code,o.name,p.code parent_code,o.status,o.created_at from identity.organization o
         left join identity.organization p on p.id=o.parent_id where o.tenant_id=? order by o.code
         """,(r,n)->new OrganizationItem(r.getObject("id",UUID.class),r.getString("code"),r.getString("name"),r.getString("parent_code"),r.getString("status"),r.getTimestamp("created_at").toInstant()),t);}
-  @PostMapping("/organizations") @ResponseStatus(HttpStatus.CREATED) @Transactional OrganizationItem createOrganization(@Valid @RequestBody OrganizationCreate x,Authentication a){
-    manage(a);var t=permissions.tenant(a);var id=UUID.randomUUID();
+  
+  @PostMapping("/organizations") 
+  @ResponseStatus(HttpStatus.CREATED) 
+  @Transactional
+  OrganizationItem createOrganization(@Valid @RequestBody OrganizationCreate x,Authentication a){
+    manage(a);
+    var t=permissions.tenant(a);
+    var id=UUID.randomUUID();
     UUID parent=null;
     if(x.parentCode()!=null&&!x.parentCode().isBlank()){
       parent=jdbc.queryForList("select id from identity.organization where tenant_id=? and code=?",UUID.class,t,x.parentCode()).stream().findFirst()
@@ -113,6 +138,7 @@ public class AccessManagementController {
     audit(a,"SERVICE_ACCOUNT_ROTATED",id);
     return issued;
   }
+
   @PostMapping("/service-accounts/{id}/revoke") @Transactional void revokeServiceAccount(@PathVariable UUID id,Authentication a){
     manage(a);var t=permissions.tenant(a);
     int c=jdbc.update("update identity.api_key set status='REVOKED' where id=? and tenant_id=? and status='ACTIVE'",id,t);
@@ -121,6 +147,7 @@ public class AccessManagementController {
     resources.adjustRecordCount("service-account",-1);
     audit(a,"SERVICE_ACCOUNT_REVOKED",id);
   }
+
   private ApiKeyIssued issueApiKey(UUID tenant,UUID account,String name){
     var prefix=vn.coreplatform.security.SecurityConfig.sha256(UUID.randomUUID().toString()).substring(0,8);
     var secret=java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(new byte[32]).replace("-","A").replace("_","B");
@@ -128,6 +155,7 @@ public class AccessManagementController {
     jdbc.update("insert into identity.api_key(id,tenant_id,account_id,name,prefix,key_hash) values(?,?,?,?,?,?)",id,tenant,account,name,prefix,vn.coreplatform.security.SecurityConfig.sha256(apiKey));
     return new ApiKeyIssued(id,name,apiKey,"API key chỉ hiển thị một lần duy nhất; server chỉ lưu hash SHA-256");
   }
+  
   private void manage(Authentication a){permissions.require(a,"ACCESS_ADMIN","MANAGE",null);}
   private void platformAdmin(Authentication a){if(a==null||a.getAuthorities().stream().noneMatch(x->x.getAuthority().equals("ROLE_PLATFORM_ADMIN")))throw new ApiProblem(HttpStatus.FORBIDDEN,"PERMISSION_DENIED","Yêu cầu quyền Platform Administrator");}
   private void revision(UUID t){jdbc.update("update identity.permission_revision set revision=revision+1,updated_at=now() where tenant_id=?",t);}

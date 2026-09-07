@@ -18,12 +18,20 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/v1/control-plane")
 public class ControlPlaneController {
+  
   private final JdbcTemplate jdbc;
   private final vn.coreplatform.kernel.ResourceRegistry resources;
   private final vn.coreplatform.audit.AuditService audits;
   private final vn.coreplatform.jobs.JobService jobs;
   private final vn.coreplatform.eventing.OutboxService outbox;
-  public ControlPlaneController(JdbcTemplate jdbc, vn.coreplatform.kernel.ResourceRegistry resources, vn.coreplatform.audit.AuditService audits, vn.coreplatform.eventing.OutboxService outbox, vn.coreplatform.jobs.JobService jobs){this.jdbc=jdbc;this.resources=resources;this.audits=audits;this.outbox=outbox;this.jobs=jobs;}
+  
+  public ControlPlaneController(JdbcTemplate jdbc, vn.coreplatform.kernel.ResourceRegistry resources, vn.coreplatform.audit.AuditService audits, vn.coreplatform.eventing.OutboxService outbox, vn.coreplatform.jobs.JobService jobs){
+    this.jdbc=jdbc;
+    this.resources=resources;
+    this.audits=audits;
+    this.outbox=outbox;
+    this.jobs=jobs;
+  }
 
   public record Summary(long resources,long modules,long pendingOutbox,long runningJobs,long files,double storageGb,String coreVersion,String environment){}
   public record Module(UUID id,String name,String moduleKey,String version,String status,String description,String metric){}
@@ -46,7 +54,8 @@ public class ControlPlaneController {
     return new Bootstrap(summary,modules(),resources(),activities(),roles(),files(),auditRows(50),runtimeSettings);
   }
 
-  @GetMapping("/audit") List<AuditItem> audit(@RequestParam(defaultValue="50") int limit, Authentication auth){
+  @GetMapping("/audit") 
+  List<AuditItem> audit(@RequestParam(defaultValue="50") int limit, Authentication auth){
     requireAdmin(auth);
     return auditRows(limit);
   }
@@ -56,7 +65,8 @@ public class ControlPlaneController {
     return jdbc.query("select id,actor_email,action,resource_type,resource_id,result,correlation_id,occurred_at from audit.event order by occurred_at desc limit ?",(r,n)->new AuditItem(r.getObject("id",UUID.class),r.getString("actor_email"),r.getString("action"),r.getString("resource_type"),r.getString("resource_id"),r.getString("result"),r.getObject("correlation_id",UUID.class),r.getTimestamp("occurred_at").toInstant()),safe);
   }
 
-  @PatchMapping("/modules/{id}/status") @Transactional
+  @PatchMapping("/modules/{id}/status") 
+  @Transactional
   Module updateModule(@PathVariable UUID id,@Valid @RequestBody ModuleStatus request,Authentication auth){
     requireAdmin(auth); int changed=jdbc.update("update platform.module set status=? where id=?",request.status(),id);
     if(changed==0) throw new ApiProblem(HttpStatus.NOT_FOUND,"MODULE_NOT_FOUND","Module không tồn tại");
@@ -64,7 +74,9 @@ public class ControlPlaneController {
     return jdbc.queryForObject("select * from platform.module where id=?",(r,n)->module(r),id);
   }
 
-  @PostMapping("/resources") @ResponseStatus(HttpStatus.CREATED) @Transactional
+  @PostMapping("/resources") 
+  @ResponseStatus(HttpStatus.CREATED) 
+  @Transactional
   Resource createResource(@Valid @RequestBody ResourceCreate request,Authentication auth){
     requireAdmin(auth);
     // E4-S01: qua Resource Registry — owner chưa đăng ký hoặc drift descriptor đều bị chặn có kiểm soát
@@ -77,7 +89,9 @@ public class ControlPlaneController {
     return created;
   }
 
-  @PostMapping("/roles") @ResponseStatus(HttpStatus.CREATED) @Transactional
+  @PostMapping("/roles") 
+  @ResponseStatus(HttpStatus.CREATED) 
+  @Transactional
   Role createRole(@Valid @RequestBody RoleCreate request,Authentication auth){
     requireAdmin(auth); var id=UUID.randomUUID();
     try{jdbc.update("insert into identity.role_summary(id,name,user_count,policy_count,scope) values(?,?,0,0,?)",id,request.name().trim(),Optional.ofNullable(request.scope()).filter(x->!x.isBlank()).orElse("Toàn deployment"));}
@@ -100,7 +114,8 @@ public class ControlPlaneController {
         : jdbc.query("select * from async.job where status=? order by created_at desc limit 100",(r,n)->job(r),safe);
   }
 
-  @PostMapping("/jobs/{id}/retry") @Transactional
+  @PostMapping("/jobs/{id}/retry") 
+  @Transactional
   JobItem retryJob(@PathVariable UUID id,Authentication auth){
     requireAdmin(auth);
     jobs.requeue(id);
@@ -108,7 +123,8 @@ public class ControlPlaneController {
     return jdbc.queryForObject("select * from async.job where id=?",(r,n)->job(r),id);
   }
 
-  @PostMapping("/jobs/{id}/cancel") @Transactional
+  @PostMapping("/jobs/{id}/cancel") 
+  @Transactional
   JobItem cancelJob(@PathVariable UUID id,Authentication auth){
     requireAdmin(auth);
     jobs.cancel(id);
@@ -122,7 +138,9 @@ public class ControlPlaneController {
     return jdbc.query("select * from async.job_schedule order by created_at desc",(r,n)->schedule(r));
   }
 
-  @PostMapping("/job-schedules") @ResponseStatus(HttpStatus.CREATED) @Transactional
+  @PostMapping("/job-schedules") 
+  @ResponseStatus(HttpStatus.CREATED) 
+  @Transactional
   ScheduleItem createSchedule(@Valid @RequestBody ScheduleCreate request,Authentication auth){
     requireAdmin(auth);
     var id=UUID.randomUUID();
@@ -138,13 +156,15 @@ public class ControlPlaneController {
         r.getInt("attempts"),r.getString("leased_by"),r.getTimestamp("available_at")==null?null:r.getTimestamp("available_at").toInstant(),
         r.getString("last_error"),r.getTimestamp("created_at").toInstant());
   }
+
   private ScheduleItem schedule(java.sql.ResultSet r)throws java.sql.SQLException{
     return new ScheduleItem(r.getObject("id",UUID.class),r.getString("tenant_key"),r.getString("job_type"),r.getInt("interval_seconds"),
         r.getInt("misfire_grace_seconds"),r.getBoolean("enabled"),r.getTimestamp("last_fired_at")==null?null:r.getTimestamp("last_fired_at").toInstant(),
         r.getTimestamp("created_at").toInstant());
   }
 
-  @PutMapping("/settings") @Transactional
+  @PutMapping("/settings") 
+  @Transactional
   Map<String,String> updateSettings(@Valid @RequestBody List<SettingUpdate> updates,Authentication auth){
     requireAdmin(auth);
     for(var item:updates) jdbc.update("insert into platform.setting(setting_key,setting_value,updated_by) values(?,?,?) on conflict(setting_key) do update set setting_value=excluded.setting_value,updated_by=excluded.updated_by,updated_at=now()",item.key(),item.value(),auth.getName());
@@ -164,7 +184,8 @@ public class ControlPlaneController {
     return new AuditVerificationView(verification.verified(), verification.checked(), verification.brokenAtSequence(), verification.reason());
   }
 
-  @PostMapping("/audit/checkpoint") @Transactional
+  @PostMapping("/audit/checkpoint") 
+  @Transactional
   CheckpointView checkpointAuditChain(@RequestParam(defaultValue="default") String tenantKey, Authentication auth) {
     requireAdmin(auth);
     long sequence = audits.checkpoint(tenantKey);

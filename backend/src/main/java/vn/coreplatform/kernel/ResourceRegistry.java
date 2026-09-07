@@ -13,12 +13,15 @@ import vn.coreplatform.shared.ApiExceptionHandler.ApiProblem;
  */
 @Service
 public class ResourceRegistry {
+  
   public static final Set<String> APPROVED_CLASSIFICATIONS = Set.of("PUBLIC", "INTERNAL", "CONFIDENTIAL", "RESTRICTED");
   private static final String TYPE_PATTERN = "[a-z][a-z0-9-]{2,119}";
   private final JdbcTemplate jdbc;
 
-  public ResourceRegistry(JdbcTemplate jdbc) { this.jdbc = jdbc; }
-
+  public ResourceRegistry(JdbcTemplate jdbc) { 
+    this.jdbc = jdbc; 
+  }
+  
   public ResourceDescriptor register(ResourceDescriptor descriptor) {
     validate(descriptor);
     var existing = findByType(descriptor.resourceType());

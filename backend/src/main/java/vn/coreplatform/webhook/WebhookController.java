@@ -24,7 +24,9 @@ public class WebhookController {
     return webhooks.listEndpoints(permissions.tenant(auth));
   }
 
-  @PostMapping @ResponseStatus(HttpStatus.CREATED) @Transactional
+  @PostMapping 
+  @ResponseStatus(HttpStatus.CREATED) 
+  @Transactional
   WebhookService.EndpointItem create(@org.springframework.validation.annotation.Validated @RequestBody WebhookService.EndpointCreate request, Authentication auth) {
     permissions.require(auth, "WEBHOOK", "CREATE", null);
     var id = webhooks.createEndpoint(permissions.tenant(auth), request.url(), request.eventTypes());
@@ -33,7 +35,8 @@ public class WebhookController {
     return webhooks.listEndpoints(permissions.tenant(auth)).stream().filter(e -> e.id().equals(id)).findFirst().orElseThrow();
   }
 
-  @PostMapping("/{id}/disable") @Transactional
+  @PostMapping("/{id}/disable") 
+  @Transactional
   void disable(@PathVariable UUID id, Authentication auth) {
     permissions.require(auth, "WEBHOOK", "DELETE", null);
     webhooks.disable(permissions.tenant(auth), id);

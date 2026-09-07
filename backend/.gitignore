@@ -1,0 +1,15 @@
+# Operating system and editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.iml
+
+# Java
+backend/target/
+*.class
+*.log
+hs_err_pid*
+
+# ENV
+.env.example

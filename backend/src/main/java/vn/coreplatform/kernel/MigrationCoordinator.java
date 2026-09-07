@@ -28,8 +28,13 @@ public class MigrationCoordinator implements BeanFactoryPostProcessor, Environme
 
   private Environment environment;
 
-  @Override public void setEnvironment(Environment environment) { this.environment = environment; }
-  @Override public int getOrder() { return Ordered.HIGHEST_PRECEDENCE; }
+  @Override public void setEnvironment(Environment environment) { 
+    this.environment = environment; 
+  }
+
+  @Override public int getOrder() { 
+    return Ordered.HIGHEST_PRECEDENCE; 
+  }
 
   @Override public void postProcessBeanFactory(org.springframework.beans.factory.config.ConfigurableListableBeanFactory beanFactory) {
     var url = environment.getProperty("spring.datasource.url");

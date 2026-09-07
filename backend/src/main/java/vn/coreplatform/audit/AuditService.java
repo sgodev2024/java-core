@@ -35,9 +35,13 @@ public class AuditService {
   private final JdbcTemplate jdbc;
   private final TransactionTemplate tx;
 
-  public AuditService(JdbcTemplate jdbc, TransactionTemplate tx) { this.jdbc = jdbc; this.tx = tx; }
+  public AuditService(JdbcTemplate jdbc, TransactionTemplate tx) { 
+    this.jdbc = jdbc; 
+    this.tx = tx; 
+  }
 
   public void record(String tenantKey, UUID actorId, String actorEmail, String action, String resourceType, String resourceId, String result, String detailsJson) {
+    
     var tenant = tenantKey == null || tenantKey.isBlank() ? SYSTEM_TENANT : tenantKey;
     var maskedDetails = canonicalDetails(mask(detailsJson));
     var occurredAt = Instant.now().truncatedTo(ChronoUnit.MICROS);
@@ -70,6 +74,7 @@ public class AuditService {
       expectedSequence = ((Number) checkpoint.getFirst().get("verified_sequence")).longValue() + 1;
       expectedPrev = String.valueOf(checkpoint.getFirst().get("chain_hash"));
     }
+    
     var rows = jdbc.query("""
         select id, actor_email, action, resource_type, resource_id, result, correlation_id, occurred_at, details, sequence_no, payload_hash, prev_hash
         from audit.event where tenant_key=? and sequence_no is not null and sequence_no >= ? order by sequence_no

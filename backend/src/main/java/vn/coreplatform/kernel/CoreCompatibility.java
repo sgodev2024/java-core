@@ -35,7 +35,9 @@ public final class CoreCompatibility {
       var parts = value.split("\\.");
       return new Version(Integer.parseInt(parts[0]), Integer.parseInt(parts[1]), Integer.parseInt(parts[2]));
     }
-    @Override public int compareTo(Version other) {
+    
+    @Override 
+    public int compareTo(Version other) {
       int majorCompare = Integer.compare(major, other.major);
       if (majorCompare != 0) return majorCompare;
       int minorCompare = Integer.compare(minor, other.minor);

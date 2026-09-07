@@ -15,11 +15,15 @@ public class ActivityProjector implements IntegrationEventHandler {
   private final JdbcTemplate jdbc;
   private final OutboxService outbox;
 
-  public ActivityProjector(JdbcTemplate jdbc, OutboxService outbox) { this.jdbc = jdbc; this.outbox = outbox; }
+  public ActivityProjector(JdbcTemplate jdbc, OutboxService outbox) { 
+    this.jdbc = jdbc; 
+    this.outbox = outbox; 
+  }
 
   @Override public String eventType() { return "dynamic-record.created.v1"; }
 
-  @Override public void handle(IntegrationEvent event) {
+  @Override 
+  public void handle(IntegrationEvent event) {
     outbox.consumeOnce("activity-projector", event.eventId(), () ->
       jdbc.update("insert into platform.activity(kind, name, metadata, status) values ('EVENT', ?, ?, 'PUBLISHED')",
         event.eventType(), event.tenantKey() + " · " + event.aggregateType() + " " + event.aggregateId().substring(0, 8)));
