@@ -82,10 +82,12 @@ Phần quyết định kỹ thuật được cập nhật có chủ đích trong
 ## 5. Lịch sử thay đổi tự động
 
 <!-- AUTO-GENERATED:START -->
-> Sinh tự động từ Git. Mốc mã gần nhất: `3c9a56be6710f6a2e1a3e0d02612eff2826e1494` (2026-08-28). Không sửa trực tiếp phần này.
+> Sinh tự động từ Git. Mốc mã gần nhất: `bbcfe992447cf5da8a0da8e26fa53277547e04e6` (2026-08-29). Không sửa trực tiếp phần này.
 
 | Ngày | Commit | Nội dung | Tác giả | Số file |
 |---|---|---|---|---:|
+| 2026-08-29 | [`bbcfe99`](https://github.com/sgodev2024/java-core/commit/bbcfe992447cf5da8a0da8e26fa53277547e04e6) | Update css | NaturalCare | 1 |
+| 2026-08-29 | [`2011de8`](https://github.com/sgodev2024/java-core/commit/2011de834a21ffdd6ea47393e9823962be8c1961) | Fix css create user | NaturalCare | 2 |
 | 2026-08-28 | [`3c9a56b`](https://github.com/sgodev2024/java-core/commit/3c9a56be6710f6a2e1a3e0d02612eff2826e1494) | done | NaturalCare | 1 |
 | 2026-08-27 | [`defb852`](https://github.com/sgodev2024/java-core/commit/defb85249925e02da252db137c517ca8f195320e) | Update css | NaturalCare | 2 |
 | 2026-08-27 | [`195c5dc`](https://github.com/sgodev2024/java-core/commit/195c5dc2ce9392b12d0af044472a81008ecd305f) | change css gender | NaturalCare | 2 |
@@ -146,6 +148,23 @@ Phần quyết định kỹ thuật được cập nhật có chủ đích trong
 | 2026-08-15 | [`295b0e6`](https://github.com/sgodev2024/java-core/commit/295b0e6d6b200c9cd17cfe23d11683f8d04d19e8) | Initialize Java Core Platform | SGO Development | 57 |
 
 ## Chi tiết file theo commit
+
+### 2026-08-29 — Update css
+
+- Commit: [`bbcfe992447cf5da8a0da8e26fa53277547e04e6`](https://github.com/sgodev2024/java-core/commit/bbcfe992447cf5da8a0da8e26fa53277547e04e6)
+- Tác giả: NaturalCare
+- Phạm vi file:
+
+- `M` `frontend/app/globals.css`
+
+### 2026-08-29 — Fix css create user
+
+- Commit: [`2011de834a21ffdd6ea47393e9823962be8c1961`](https://github.com/sgodev2024/java-core/commit/2011de834a21ffdd6ea47393e9823962be8c1961)
+- Tác giả: NaturalCare
+- Phạm vi file:
+
+- `M` `backend/src/main/java/vn/coreplatform/permission/AccessManagementController.java`
+- `M` `frontend/app/globals.css`
 
 ### 2026-08-28 — done
 
