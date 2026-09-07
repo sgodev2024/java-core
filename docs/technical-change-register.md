@@ -82,10 +82,11 @@ Phần quyết định kỹ thuật được cập nhật có chủ đích trong
 ## 5. Lịch sử thay đổi tự động
 
 <!-- AUTO-GENERATED:START -->
-> Sinh tự động từ Git. Mốc mã gần nhất: `bbcfe992447cf5da8a0da8e26fa53277547e04e6` (2026-08-29). Không sửa trực tiếp phần này.
+> Sinh tự động từ Git. Mốc mã gần nhất: `23d72a05b5529524ea27f11a2b79259b1735f3ce` (2026-09-04). Không sửa trực tiếp phần này.
 
 | Ngày | Commit | Nội dung | Tác giả | Số file |
 |---|---|---|---|---:|
+| 2026-09-04 | [`23d72a0`](https://github.com/sgodev2024/java-core/commit/23d72a05b5529524ea27f11a2b79259b1735f3ce) | feat: change system avatar | DatNguyenTien | 5 |
 | 2026-08-29 | [`bbcfe99`](https://github.com/sgodev2024/java-core/commit/bbcfe992447cf5da8a0da8e26fa53277547e04e6) | Update css | NaturalCare | 1 |
 | 2026-08-29 | [`2011de8`](https://github.com/sgodev2024/java-core/commit/2011de834a21ffdd6ea47393e9823962be8c1961) | Fix css create user | NaturalCare | 2 |
 | 2026-08-28 | [`3c9a56b`](https://github.com/sgodev2024/java-core/commit/3c9a56be6710f6a2e1a3e0d02612eff2826e1494) | done | NaturalCare | 1 |
@@ -148,6 +149,18 @@ Phần quyết định kỹ thuật được cập nhật có chủ đích trong
 | 2026-08-15 | [`295b0e6`](https://github.com/sgodev2024/java-core/commit/295b0e6d6b200c9cd17cfe23d11683f8d04d19e8) | Initialize Java Core Platform | SGO Development | 57 |
 
 ## Chi tiết file theo commit
+
+### 2026-09-04 — feat: change system avatar
+
+- Commit: [`23d72a05b5529524ea27f11a2b79259b1735f3ce`](https://github.com/sgodev2024/java-core/commit/23d72a05b5529524ea27f11a2b79259b1735f3ce)
+- Tác giả: DatNguyenTien
+- Phạm vi file:
+
+- `M` `backend/src/main/java/vn/coreplatform/controlplane/ControlPlaneController.java`
+- `M` `backend/src/main/resources/application.yml`
+- `A` `backend/src/main/resources/db/migration/V22__tenant_logo_data.sql`
+- `M` `frontend/app/globals.css`
+- `M` `frontend/app/page.tsx`
 
 ### 2026-08-29 — Update css
 
