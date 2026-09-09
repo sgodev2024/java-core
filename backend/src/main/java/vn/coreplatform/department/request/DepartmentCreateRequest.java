@@ -13,8 +13,7 @@ public record DepartmentCreateRequest(
     @Size(max=500) String description,
     @NotNull UUID orgId,
     UUID parentId,
-    UUID managerId,
-    int sortOrder
+    UUID managerId
 ) {
     
 }

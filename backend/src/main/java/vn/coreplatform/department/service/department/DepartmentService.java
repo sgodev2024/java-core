@@ -1,4 +1,4 @@
-package vn.coreplatform.department.service;
+package vn.coreplatform.department.service.department;
 
 import java.util.List;
 import java.util.UUID;
@@ -56,7 +56,7 @@ public class DepartmentService implements IDepartmentService{
             throw new ApiProblem(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED", "Chưa xác thực");
         }
 
-        permissionService.require(auth, "DEPARTMENT", "CREATE", null);
+        permissionService.require(auth, "department", "CREATE", null);
 
         validateOrganization(tenantId, request.orgId());
 
@@ -65,7 +65,6 @@ public class DepartmentService implements IDepartmentService{
         }
 
         if(request.parentId() != null){
-
             validateParent(tenantId, request.orgId(), request.parentId());
         }
 
@@ -87,7 +86,7 @@ public class DepartmentService implements IDepartmentService{
             actorId,
             email,
             "DEPARTMENT_CREATED",
-            "DEPARTMENT",
+            "department",
             departmentId.toString(),
             "SUCCESS",
             """
@@ -124,20 +123,19 @@ public class DepartmentService implements IDepartmentService{
     }
 
     @Override  
-    public DepartmentResponse getDepartment (String code){
+    public DepartmentResponse getDepartmentByCode (String code){
 
         UUID tenantId = TenantContext.current();
         if(tenantId == null){
             throw new ApiProblem(HttpStatus.UNAUTHORIZED, "TENANT_CONTEXT_MISSING", "Không xác định được tenant hiện tại");
         }
-
         DepartmentResponse department = departmentRepository.findByCodeAndTenantId(code, tenantId)
                                 .orElseThrow(() -> new ApiProblem(
                                     HttpStatus.NOT_FOUND,
                                     "DEPARTMENT_NOT_FOUND",
                                     "Không tìm thấy phòng ban"
                                 ));
-
+        
         return department;
     }
 
@@ -151,77 +149,48 @@ public class DepartmentService implements IDepartmentService{
         return  null;
     }
 
-    @Override 
-    public List<DepartmentResponse> getAllDepartment(){
-        return  null;
+    @Override
+    public DepartmentResponse updateDepartment(UUID departmentId){
+        return null;
     }
 
     @Override 
-    public void deleteDepartment (Long id, Long orgid){
-
+    public List<DepartmentResponse> getAllDepartment(){
+        UUID tenantId = TenantContext.current();
+        if(tenantId == null){
+            throw new ApiProblem(HttpStatus.UNAUTHORIZED, "TENANT_CONTEXT_MISSING", "Không xác định được tenant hiện tại");
+        }  
+        return  departmentRepository.getAll(tenantId);
     }
 
     @Override 
     @Transactional 
-    public MemberResponse addMemberToDepartment (MemberAddRequest request, String departmentCode){
+    public void deleteDepartment (UUID departmentId){
         UUID tenantId = TenantContext.current();
-        DepartmentResponse department = departmentRepository.findByCodeAndTenantId(departmentCode, tenantId)
-                                    .orElseThrow(()-> new ApiProblem(HttpStatus.NOT_FOUND, "DEPARTMENT_NOT_FOUND", "Không tìm thấy phòng code: " +departmentCode)
-        );
+        if(tenantId == null){
+            throw new ApiProblem(HttpStatus.UNAUTHORIZED, "TENANT_CONTEXT_MISSING", "Không xác định được tenant hiện tại");
+        } 
 
-        if(departmentMemberRepository.existsByAccountId(request.accountId(), department.id(), tenantId)){
-            throw new ApiProblem(
-            HttpStatus.CONFLICT,
-            "MEMBER_ALREADY_EXISTS",
-            "Account đã tồn tại trong department"
-            );
-        }
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if(auth == null || !auth.isAuthenticated()){
             throw new ApiProblem(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED", "Chưa xác thực");
         }
-        permissionService.require(auth, "DEPARTMENT-MEMBER", "CREATE", null);
-        UUID memberId = departmentMemberRepository.insert(tenantId, department.id(), request.accountId(), request.role().name());
+
+        permissionService.require(auth, "department", "DELETE", null);
         
+        departmentRepository.deleteByIdAndTenantId(departmentId, tenantId);
+
         UUID actorId = permissionService.account(auth);
-        String email = auth.getName();
-        auditService.record(
-            permissionService.tenantKey(auth),
-            actorId,
-            email,
-            "DEPARTMENT_CREATED",
-            "DEPARTMENT",
-            memberId.toString(),
-            "SUCCESS",
-            null
+        auditService.record(permissionService.tenantKey(auth),
+                            actorId,
+                            auth.getName(), 
+                            "DELETE_DEPARTMENT",
+                            "department",
+                            departmentId.toString(),
+                            "SUCCESS",
+                            null
         );
-        
-        MemberResponse member = departmentMemberRepository.findById(memberId, tenantId, department.id())
-                                .orElseThrow(()-> new ApiProblem(HttpStatus.NOT_FOUND, "MEMBER_NOT_FOUND", "Không tìm thấy thành viên trong phòng : " + departmentCode));
-
-        return member;
     }
-
-    @Override 
-    public MemberResponse getMember (Long accountId, Long departmentId){
-        return  null;
-    }
-
-    @Override 
-    public MemberResponse updateMemberRole (Long accountId, Long departmentId){
-        return null;
-    }
-
-    @Override 
-    public List<MemberResponse> getAllMemberInDeapartment(Long departmentId){
-        return null;
-    }
-
-    @Override 
-    public void removeMember (Long accountId, Long departmentId){
-
-    }
-
 
     private void validateOrganization(UUID tenantId, UUID orgId) {
 

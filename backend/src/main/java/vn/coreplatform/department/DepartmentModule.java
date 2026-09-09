@@ -54,7 +54,7 @@ public class DepartmentModule implements ModuleContributor {
                 "/administration/departments",          // route
                 31,                                     // sortOrder
                 "",                                     // requiredAuthority
-                "DEPARTMENT",                           // permissionResource
+                "department",                           // permissionResource
                 "READ",                                 // permissionAction
                 List.of("department", "phòng ban", "quản lý")
             )

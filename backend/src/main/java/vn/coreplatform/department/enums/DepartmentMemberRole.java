@@ -1,4 +1,4 @@
-package vn.coreplatform.department.repository;
+package vn.coreplatform.department.enums;
 
 public enum DepartmentMemberRole {
     MEMBER,

@@ -11,15 +11,15 @@ import io.swagger.v3.oas.annotations.parameters.RequestBody;
 import jakarta.validation.Valid;
 import vn.coreplatform.department.request.MemberAddRequest;
 import vn.coreplatform.department.response.MemberResponse;
-import vn.coreplatform.department.service.IDepartmentService;
+import vn.coreplatform.department.service.member.IMemberService;
 
 @RestController 
 @RequestMapping("/api/departments/{departmentCode}/members")
 public class DepartmentMemberController {
-    private final IDepartmentService departmentService;
+    private final IMemberService memberService;
 
-    public DepartmentMemberController (IDepartmentService departmentService){
-        this.departmentService = departmentService;
+    public DepartmentMemberController (IMemberService memberService){
+        this.memberService = memberService;
     }
 
     @PostMapping("/add")
@@ -28,7 +28,7 @@ public class DepartmentMemberController {
             @Valid @RequestBody MemberAddRequest request
     ) {
         MemberResponse response =
-                departmentService.addMemberToDepartment(
+                memberService.addMemberToDepartment(
                     request,
                     departmentCode
                 );

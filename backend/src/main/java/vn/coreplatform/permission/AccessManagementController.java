@@ -33,7 +33,7 @@ public class AccessManagementController {
   public record TenantItem(UUID id,String key,String name,String status,Instant createdAt){}
   public record TenantCreate(@Pattern(regexp="[a-z][a-z0-9-]{1,79}") String key,@NotBlank @Size(max=160) String name){}
   public record OrganizationItem(UUID id,String code,String name,String parentCode,String status,Instant createdAt){}
-  public record OrganizationCreate(@Pattern(regexp="[a-z][a-z0-9-]{1,79}") String code,@NotBlank @Size(max=160) String name,String parentCode){}
+  public record   OrganizationCreate(@Pattern(regexp="[a-z][a-z0-9-]{1,79}") String code,@NotBlank @Size(max=160) String name,String parentCode){}
   public record TempPassword(String tempPassword, boolean mustChangePassword){}
   public record ServiceAccountCreate(@NotBlank @Size(max=160) String name,UUID orgId){}
   public record ServiceAccountItem(UUID id,String name,String prefix,String accountEmail,String status,Instant lastUsedAt,Instant createdAt){}

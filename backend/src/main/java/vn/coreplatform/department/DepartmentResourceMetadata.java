@@ -24,7 +24,7 @@ public class DepartmentResourceMetadata implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         // Đăng ký resource: Department
         resources.register(new ResourceDescriptor(
-            "DEPARTMENT",                        // resourceType
+            "department",                        // resourceType
             "Phòng ban",                         // name
             "department",                        // ownerModule
             "DOMAIN",                            // storageMode
@@ -36,12 +36,12 @@ public class DepartmentResourceMetadata implements ApplicationRunner {
 
         // Đăng ký resource: Department Member
         resources.register(new ResourceDescriptor(
-            "DEPARTMENT-MEMBER",                 // resourceType
+            "department-member",                 // resourceType
             "Thành viên phòng ban",              // name
             "department",                        // ownerModule
             "DOMAIN",                            // storageMode
             "v1",                                // schemaVersion
-            List.of("READ", "CREATE", "DELETE"), // supportedActions
+            List.of("READ", "CREATE", "UPDATE", "DELETE"), // supportedActions
             "ALWAYS",                            // auditPolicy
             "INTERNAL"                           // dataClassification
         ));

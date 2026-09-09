@@ -35,7 +35,10 @@ public class PermissionService {
       return new Decision(allow,allow?"POLICY_ALLOW":"NO_MATCHING_POLICY",ownerOnly);
     }catch(Exception e){return evaluationDenied(e);}
   }
-  public void require(Authentication auth,String resource,String action,UUID ownerId){var d=decide(auth,resource,action,ownerId);if(!d.allowed())throw new ApiProblem(HttpStatus.FORBIDDEN,"PERMISSION_DENIED","Không có quyền "+action+" trên "+resource);}
+  public void require(Authentication auth,String resource,String action,UUID ownerId){
+    var d=decide(auth,resource,action,ownerId);
+    if(!d.allowed())throw new ApiProblem(HttpStatus.FORBIDDEN,"PERMISSION_DENIED","Không có quyền "+action+" trên "+resource);
+  }
   public Decision scope(Authentication auth,String resource,String action){
     try{
       var tenant=tenant(auth);var account=account(auth);

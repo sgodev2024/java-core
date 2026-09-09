@@ -3,7 +3,7 @@ package vn.coreplatform.department.response;
 import java.time.Instant;
 import java.util.UUID;
 
-import vn.coreplatform.department.repository.DepartmentMemberRole;
+import vn.coreplatform.department.enums.DepartmentMemberRole;
 
 public record MemberResponse(
     UUID id,

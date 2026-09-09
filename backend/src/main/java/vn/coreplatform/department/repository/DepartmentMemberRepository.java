@@ -7,8 +7,8 @@ import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
+import vn.coreplatform.department.enums.DepartmentMemberRole;
 import vn.coreplatform.department.response.MemberResponse;
-
 
 @Repository 
 public class DepartmentMemberRepository {
@@ -30,7 +30,6 @@ public class DepartmentMemberRepository {
 
         return count != null && count > 0;
     }
-
 
     public UUID insert(UUID tenantId, UUID departmentId, UUID accountId, String role){
         return  jdbc.queryForObject("""
@@ -82,4 +81,5 @@ public class DepartmentMemberRepository {
             departmentId
         ).stream().findFirst();
     }
+
 }
