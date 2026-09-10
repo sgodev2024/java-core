@@ -1,5 +1,7 @@
 package vn.coreplatform.department;
 
+import java.util.UUID;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -7,14 +9,14 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import io.swagger.v3.oas.annotations.parameters.RequestBody;
+import org.springframework.web.bind.annotation.RequestBody;
 import jakarta.validation.Valid;
 import vn.coreplatform.department.request.MemberAddRequest;
 import vn.coreplatform.department.response.MemberResponse;
 import vn.coreplatform.department.service.member.IMemberService;
 
 @RestController 
-@RequestMapping("/api/departments/{departmentCode}/members")
+@RequestMapping("/api/departments/{departmentId}/members")
 public class DepartmentMemberController {
     private final IMemberService memberService;
 
@@ -24,13 +26,13 @@ public class DepartmentMemberController {
 
     @PostMapping("/add")
     public ResponseEntity<MemberResponse> addMember(
-            @PathVariable String departmentCode,
+            @PathVariable UUID departmentId,
             @Valid @RequestBody MemberAddRequest request
     ) {
         MemberResponse response =
                 memberService.addMemberToDepartment(
                     request,
-                    departmentCode
+                    departmentId
                 );
 
         return ResponseEntity

@@ -9,6 +9,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 import vn.coreplatform.department.response.DepartmentResponse;
+import vn.coreplatform.department.response.DepartmentTreeResponse;
 
 @Repository 
 public class DepartmentRepository {
@@ -298,6 +299,45 @@ public class DepartmentRepository {
                 WHERE id =?
                     AND tenant_id = ?
                 """,departmentId, tenantId
+        );
+    }
+
+    public List<DepartmentTreeResponse> getTreeData(UUID tenantId, UUID orgId) {
+        return jdbc.query("""
+            SELECT
+                d.id,
+                d.code,
+                d.name,
+                d.status,
+                d.parent_id,
+                a.display_name AS manager_name,
+                (
+                    SELECT COUNT(*)
+                    FROM identity.department_member dm
+                    WHERE dm.tenant_id = d.tenant_id
+                    AND dm.department_id = d.id
+                    AND dm.removed_at IS NULL
+                ) AS member_count
+            FROM identity.department d
+            LEFT JOIN identity.account a
+                ON a.id = d.manager_id
+            WHERE d.tenant_id = ?
+            AND d.org_id = ?
+            ORDER BY
+                d.sort_order ASC,
+                d.name ASC
+            """,
+            (rs, rowNum) -> new DepartmentTreeResponse(
+                rs.getObject("id", UUID.class),
+                rs.getString("code"),
+                rs.getString("name"),
+                rs.getString("status"),
+                rs.getObject("parent_id", UUID.class),
+                rs.getString("manager_name"),
+                rs.getInt("member_count")
+            ),
+            tenantId,
+            orgId
         );
     }
 }

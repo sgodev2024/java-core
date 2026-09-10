@@ -12,7 +12,7 @@ public interface IDepartmentService {
     DepartmentResponse getDepartmentByCode(String code);
     DepartmentResponse changeOrDeleteManager(Long departmentId);
     DepartmentResponse updateDepartment(UUID departmentId);
-    DepartmentTreeResponse getDepartmentTree(Long orgId);
+    List<DepartmentTreeResponse> getDepartmentTree(UUID orgId);
     List<DepartmentResponse> getAllDepartment();
     void deleteDepartment (UUID departmentId);
 

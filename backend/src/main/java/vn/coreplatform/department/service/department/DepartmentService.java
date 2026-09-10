@@ -1,6 +1,9 @@
 package vn.coreplatform.department.service.department;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
@@ -129,6 +132,13 @@ public class DepartmentService implements IDepartmentService{
         if(tenantId == null){
             throw new ApiProblem(HttpStatus.UNAUTHORIZED, "TENANT_CONTEXT_MISSING", "Không xác định được tenant hiện tại");
         }
+
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if(auth == null || !auth.isAuthenticated()){
+            throw new ApiProblem(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED", "Chưa xác thực");
+        }
+
+        permissionService.require(auth, "department", "READ", null);
         DepartmentResponse department = departmentRepository.findByCodeAndTenantId(code, tenantId)
                                 .orElseThrow(() -> new ApiProblem(
                                     HttpStatus.NOT_FOUND,
@@ -145,8 +155,71 @@ public class DepartmentService implements IDepartmentService{
     }
 
     @Override 
-    public  DepartmentTreeResponse getDepartmentTree(Long orgId){
-        return  null;
+    public List<DepartmentTreeResponse> getDepartmentTree(UUID orgId){
+        UUID tenantId = TenantContext.current();
+        if (tenantId == null) {
+            throw new ApiProblem(
+                HttpStatus.UNAUTHORIZED,
+                "TENANT_CONTEXT_MISSING",
+                "Không xác định được tenant hiện tại"
+            );
+        }
+
+        Authentication auth =
+            SecurityContextHolder.getContext()
+                .getAuthentication();
+
+        if (auth == null || !auth.isAuthenticated()) {
+            throw new ApiProblem(
+                HttpStatus.UNAUTHORIZED,
+                "UNAUTHENTICATED",
+                "Chưa xác thực"
+            );
+        }
+
+        permissionService.require(
+            auth,
+            "department",
+            "READ",
+            null
+        );
+
+        validateOrganization(tenantId, orgId);
+
+        List<DepartmentTreeResponse> rows =
+            departmentRepository.getTreeData(
+                tenantId,
+                orgId
+        );
+
+        return buildTree(rows);
+
+    }
+
+    private List<DepartmentTreeResponse> buildTree(List<DepartmentTreeResponse> flat) {
+        // 1. Map id -> node
+        Map<UUID, DepartmentTreeResponse> byId = new HashMap<>();
+        for (DepartmentTreeResponse node : flat) {
+            byId.put(node.getId(), node);
+        }
+
+        // 2. Nối con vào cha
+        List<DepartmentTreeResponse> roots = new ArrayList<>();
+        for (DepartmentTreeResponse node : flat) {
+            UUID parentId = node.getParentId();
+            if (parentId == null) {
+                roots.add(node);
+            } else {
+                DepartmentTreeResponse parent = byId.get(parentId);
+                if (parent != null) {
+                    parent.getChildren().add(node);
+                } else {
+                    // parent không thuộc org này → coi như root
+                    roots.add(node);
+                }
+            }
+        }
+        return roots;
     }
 
     @Override
@@ -157,6 +230,12 @@ public class DepartmentService implements IDepartmentService{
     @Override 
     public List<DepartmentResponse> getAllDepartment(){
         UUID tenantId = TenantContext.current();
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if(auth == null || !auth.isAuthenticated()){
+            throw new ApiProblem(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED", "Chưa xác thực");
+        }
+
+        permissionService.require(auth, "department", "READ", null);
         if(tenantId == null){
             throw new ApiProblem(HttpStatus.UNAUTHORIZED, "TENANT_CONTEXT_MISSING", "Không xác định được tenant hiện tại");
         }  

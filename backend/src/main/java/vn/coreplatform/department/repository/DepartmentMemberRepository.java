@@ -73,8 +73,10 @@ public class DepartmentMemberRepository {
                 DepartmentMemberRole.valueOf(
                     rs.getString("role_in_dept")
                 ),
-                rs.getObject("assigned_at", Instant.class),
-                rs.getObject("removed_at", Instant.class)
+                rs.getTimestamp("assigned_at").toInstant(),
+                rs.getTimestamp("removed_at") == null
+                    ? null
+                    : rs.getTimestamp("removed_at").toInstant()
             ),
             memberId,
             tenantId,

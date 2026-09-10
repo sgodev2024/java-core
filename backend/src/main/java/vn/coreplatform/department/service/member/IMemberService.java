@@ -1,12 +1,13 @@
 package vn.coreplatform.department.service.member;
 
 import java.util.List;
+import java.util.UUID;
 
 import vn.coreplatform.department.request.MemberAddRequest;
 import vn.coreplatform.department.response.MemberResponse;
 
 public interface IMemberService {
-    MemberResponse addMemberToDepartment (MemberAddRequest request, String departmentCode);
+    MemberResponse addMemberToDepartment (MemberAddRequest request, UUID departmentId);
     MemberResponse getMember (Long accountId, Long departmentId);
     MemberResponse updateMemberRole (Long accountId, Long departmentId);
     List<MemberResponse> getAllMemberInDeapartment(Long departmentId);

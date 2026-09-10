@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import vn.coreplatform.department.request.DepartmentCreateRequest;
 import vn.coreplatform.department.response.DepartmentResponse;
+import vn.coreplatform.department.response.DepartmentTreeResponse;
 import vn.coreplatform.department.service.department.DepartmentService;
 
 
@@ -42,10 +43,16 @@ public class DepartmentController {
         return ResponseEntity.status(HttpStatus.CREATED).body(department);
     }
 
-    @GetMapping("/{departmentId}")
+    @GetMapping("/{departmentCode}")
     public ResponseEntity<DepartmentResponse> getDepartmentByCode(String code){
         DepartmentResponse department = departmentService.getDepartmentByCode(code);
         return ResponseEntity.status(HttpStatus.FOUND).body(department);
+    }
+
+    @GetMapping("/{orgId}/tree")
+    public ResponseEntity<List<DepartmentTreeResponse>> getDepartmentTree(@PathVariable  UUID orgId){
+        List<DepartmentTreeResponse> tree =departmentService.getDepartmentTree(orgId);
+        return ResponseEntity.status(HttpStatus.FOUND).body(tree);
     }
 
     @DeleteMapping("/{departmentId}/delete")

@@ -38,10 +38,10 @@ public class MemberService implements IMemberService{
 
     @Override 
     @Transactional 
-    public MemberResponse addMemberToDepartment (MemberAddRequest request, String departmentCode){
+    public MemberResponse addMemberToDepartment (MemberAddRequest request, UUID departmentId){
         UUID tenantId = TenantContext.current();
-        DepartmentResponse department = departmentRepository.findByCodeAndTenantId(departmentCode, tenantId)
-                                    .orElseThrow(()-> new ApiProblem(HttpStatus.NOT_FOUND, "DEPARTMENT_NOT_FOUND", "Không tìm thấy phòng code: " +departmentCode)
+        DepartmentResponse department = departmentRepository.findByIdAndTenantId(departmentId, tenantId)
+                                    .orElseThrow(()-> new ApiProblem(HttpStatus.NOT_FOUND, "DEPARTMENT_NOT_FOUND", "Không tìm thấy phòng code: " + departmentId)
         );
 
         if(departmentMemberRepository.existsByAccountId(request.accountId(), department.id(), tenantId)){
@@ -72,7 +72,7 @@ public class MemberService implements IMemberService{
         );
         
         MemberResponse member = departmentMemberRepository.findById(memberId, tenantId, department.id())
-                                .orElseThrow(()-> new ApiProblem(HttpStatus.NOT_FOUND, "MEMBER_NOT_FOUND", "Không tìm thấy thành viên trong phòng : " + departmentCode));
+                                .orElseThrow(()-> new ApiProblem(HttpStatus.NOT_FOUND, "MEMBER_NOT_FOUND", "Không tìm thấy thành viên trong phòng : " + department.code()));
 
         return member;
     }
