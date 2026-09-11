@@ -17,6 +17,7 @@ import vn.coreplatform.audit.AuditService;
 import vn.coreplatform.department.repository.DepartmentMemberRepository;
 import vn.coreplatform.department.repository.DepartmentRepository;
 import vn.coreplatform.department.request.DepartmentCreateRequest;
+import vn.coreplatform.department.request.DepartmentUpdateRequest;
 import vn.coreplatform.department.request.MemberAddRequest;
 import vn.coreplatform.department.response.DepartmentResponse;
 import vn.coreplatform.department.response.DepartmentTreeResponse;
@@ -223,22 +224,76 @@ public class DepartmentService implements IDepartmentService{
     }
 
     @Override
-    public DepartmentResponse updateDepartment(UUID departmentId){
-        return null;
+    @Transactional 
+    public DepartmentResponse updateDepartment(UUID departmentId, DepartmentUpdateRequest request){
+        UUID tenantId = TenantContext.current();
+        if(tenantId == null){
+            throw new ApiProblem(HttpStatus.UNAUTHORIZED, "TENANT_CONTEXT_MISSING", "Không xác định được tenant hiện tại");
+        }        
+
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if(auth == null || !auth.isAuthenticated()){
+            throw new ApiProblem(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED", "Chưa xác thực");
+        }
+        permissionService.require(auth, "department", "UPDATE", null);
+        DepartmentResponse existedDepartment = departmentRepository.findByIdAndTenantId(departmentId, tenantId)
+                                                .orElseThrow(()-> new ApiProblem(HttpStatus.NOT_FOUND,
+                                                "DEPARTMENT_NOT_FOUND",
+                                             "Không tìm thấy phòng ban")
+        );
+
+        if(request.orgId() != null){
+            validateOrganization(tenantId, request.orgId());
+        }
+        if(request.parentId() != null){
+            validateParent(tenantId, request.orgId(), request.parentId());
+        }
+        if(request.managerId() != null){
+            validateManager(tenantId, request.managerId());
+        }
+        if(request.code() != null && request.code() != existedDepartment.code()){
+            if(departmentRepository.existsByCode(tenantId, request.code())){
+                throw new ApiProblem(HttpStatus.CONFLICT, "DEPARTMENT_EXISTS", "Phòng đã tồn tại!");
+            }
+        }
+        int updated = departmentRepository.update(departmentId, tenantId, request.name(), request.code(), request.description(), request.orgId(), request.parentId(), request.managerId(), request.status(), request.sortOrder());
+        if (updated == 0) {
+            throw new ApiProblem(
+                HttpStatus.NOT_FOUND,
+                "DEPARTMENT_NOT_FOUND",
+                "Không tìm thấy phòng ban"
+            );
+        }
+
+        DepartmentResponse result = departmentRepository.findByIdAndTenantId(departmentId, tenantId)
+                                    .orElseThrow(()-> new ApiProblem( HttpStatus.NOT_FOUND,"DEPARTMENT_NOT_FOUND","Không tìm thấy phòng ban")
+        );
+
+        auditService.record(
+        permissionService.tenantKey(auth),
+        permissionService.account(auth),
+        auth.getName(),
+        "DEPARTMENT_UPDATED",
+        "DEPARTMENT",
+        departmentId.toString(),
+        "SUCCESS",
+        null
+        );
+        return  result;
     }
 
     @Override 
     public List<DepartmentResponse> getAllDepartment(){
         UUID tenantId = TenantContext.current();
+        if(tenantId == null){
+            throw new ApiProblem(HttpStatus.UNAUTHORIZED, "TENANT_CONTEXT_MISSING", "Không xác định được tenant hiện tại");
+        }    
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if(auth == null || !auth.isAuthenticated()){
             throw new ApiProblem(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED", "Chưa xác thực");
         }
 
         permissionService.require(auth, "department", "READ", null);
-        if(tenantId == null){
-            throw new ApiProblem(HttpStatus.UNAUTHORIZED, "TENANT_CONTEXT_MISSING", "Không xác định được tenant hiện tại");
-        }  
         return  departmentRepository.getAll(tenantId);
     }
 

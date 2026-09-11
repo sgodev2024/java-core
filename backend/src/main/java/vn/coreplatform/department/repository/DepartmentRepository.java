@@ -340,4 +340,45 @@ public class DepartmentRepository {
             orgId
         );
     }
+
+    public int update(
+        UUID departmentId,
+        UUID tenantId,
+        String name,
+        String code,
+        String description,
+        UUID orgId,
+        UUID parentId,
+        UUID managerId,
+        String status,
+        Integer sortOrder
+    ) {
+        return jdbc.update("""
+            UPDATE identity.department
+            SET
+                name = COALESCE(?, name),
+                code = COALESCE(?, code),
+                description = COALESCE(?, description),
+                org_id = COALESCE(?, org_id),
+                parent_id = COALESCE(?, parent_id),
+                manager_id = COALESCE(?, manager_id),
+                status = COALESCE(?, status),
+                sort_order = COALESCE(?, sort_order),
+                updated_at = now()
+            WHERE id = ?
+            AND tenant_id = ?
+            """,
+            name,
+            code,
+            description,
+            orgId,
+            parentId,
+            managerId,
+            status,
+            sortOrder,
+            departmentId,
+            tenantId
+        );
+    }
+    
 }
