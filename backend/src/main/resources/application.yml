@@ -2,8 +2,8 @@ spring:
   application.name: core-platform-runtime
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/core_platform}
-    username: ${DB_USER:core_app}
-    password: ${DB_PASSWORD:core_app_dev}
+    username: ${DB_USER:core_admin}
+    password: ${DB_PASSWORD:core_admin_dev}
     hikari:
       maximum-pool-size: ${DB_POOL_SIZE:20}
       connection-timeout: 3000
@@ -50,4 +50,3 @@ core:
   jobs.initial-delay-ms: ${CORE_JOBS_INITIAL_DELAY_MS:4000}
   jobs.scheduler-poll-ms: ${CORE_JOBS_SCHEDULER_POLL_MS:5000}
   jobs.scheduler-initial-delay-ms: ${CORE_JOBS_SCHEDULER_INITIAL_DELAY_MS:5000}
-
