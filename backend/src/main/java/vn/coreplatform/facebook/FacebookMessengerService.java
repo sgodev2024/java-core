@@ -272,7 +272,7 @@ public class FacebookMessengerService {
     }
   }
 
-  private boolean configured() { return !pageId.isBlank() && !pageAccessToken.isBlank(); }
+  public boolean configured() { return !pageId.isBlank() && !pageAccessToken.isBlank(); }
   private void requireConfigured() {
     if (!configured()) throw new ApiProblem(HttpStatus.SERVICE_UNAVAILABLE, "FACEBOOK_NOT_CONFIGURED", "Chưa cấu hình Facebook Page ID và Page Access Token");
   }
