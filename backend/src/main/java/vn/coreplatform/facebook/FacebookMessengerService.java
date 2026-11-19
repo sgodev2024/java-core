@@ -50,6 +50,8 @@ public class FacebookMessengerService {
   public record Conversation(String id, String customer, String psid, String preview, int unread, Instant updatedAt) {}
   public record Message(String id, String conversationId, String direction, String message, String status,
                         Instant sentAt, String attachmentType, String attachmentUrl) {}
+  public record CustomerInfo(UUID id, String pageId, String phone, String name, String psid,
+                             Instant createdAt, Instant updatedAt) {}
   public record Workspace(Connection connection, Summary summary, List<Conversation> conversations) {}
   public record SyncResult(int conversations, int messages, Instant syncedAt) {}
 
@@ -69,6 +71,18 @@ public class FacebookMessengerService {
     var configured = configured();
     return new Workspace(new Connection(configured, configured ? pageId : "", configured ? pageName : "Chưa cấu hình", graphVersion),
         new Summary(conversations.size(), unread, sentToday == null ? 0 : sentToday), conversations);
+  }
+
+  public List<CustomerInfo> customers() {
+    requireModuleEnabled();
+    return jdbc.query("""
+        select id,page_id,phone,name,psid,created_at,updated_at
+        from facebook.customer_info
+        order by updated_at desc
+        """, (rs, row) -> new CustomerInfo(
+        rs.getObject("id", UUID.class), rs.getString("page_id"), rs.getString("phone"),
+        rs.getString("name"), rs.getString("psid"), rs.getTimestamp("created_at").toInstant(),
+        rs.getTimestamp("updated_at").toInstant()));
   }
 
   @Transactional
@@ -172,8 +186,11 @@ public class FacebookMessengerService {
               """, id, conversationId, direction, text, "INBOUND".equals(direction) ? "RECEIVED" : "SENT",
               attachment[0], attachment[1], java.sql.Timestamp.from(sentAt));
           messageCount += inserted;
-          if (inserted > 0 && "INBOUND".equals(direction))
+          if (inserted > 0 && "INBOUND".equals(direction)) {
             jdbc.update("update facebook.messenger_conversation set unread_count=unread_count+1 where id=?", conversationId);
+            VietnamesePhoneNumber.extractFirst(text)
+                .ifPresent(phone -> upsertCustomer(pageId, phone, customerName, psid));
+          }
           if (sentAt.isAfter(latestAt)) { latestAt = sentAt; latestText = text; }
         }
         if (!latestText.isBlank()) jdbc.update("update facebook.messenger_conversation set last_message=?,updated_at=? where id=?",
@@ -205,6 +222,7 @@ public class FacebookMessengerService {
     var conversationId = existingConversationId(eventPageId, sender, eventPageId + ":" + sender);
     var messageId = messageNode.path("mid").asText("webhook-" + UUID.randomUUID());
     var text = messageNode.path("text").asText(attachmentLabel(messageNode));
+    var phone = VietnamesePhoneNumber.extractFirst(text);
     var sentAt = event.path("timestamp").asLong(0) > 0
         ? Instant.ofEpochMilli(event.path("timestamp").asLong()) : Instant.now();
     String attachmentType = null;
@@ -214,18 +232,62 @@ public class FacebookMessengerService {
       attachmentType = attachment.path("type").asText(null);
       attachmentUrl = attachment.path("payload").path("url").asText(null);
     }
-    var customerName = "Khách hàng " + sender.substring(Math.max(0, sender.length() - 6));
+    var customerName = phone.isPresent()
+        ? resolveCustomerName(eventPageId, sender)
+        : fallbackCustomerName(sender);
     jdbc.update("""
         insert into facebook.messenger_conversation(id,page_id,customer_psid,customer_name,last_message,unread_count,updated_at)
         values (?,?,?,?,?,0,?)
         on conflict (id) do update set last_message=excluded.last_message,
-          updated_at=excluded.updated_at
+          customer_name=excluded.customer_name,updated_at=excluded.updated_at
         """, conversationId, eventPageId, sender, customerName, text, java.sql.Timestamp.from(sentAt));
     var inserted = jdbc.update("""
         insert into facebook.messenger_message(id,conversation_id,direction,message,status,attachment_type,attachment_url,sent_at)
         values (?,?,'INBOUND',?,'RECEIVED',?,?,?) on conflict (id) do nothing
         """, messageId, conversationId, text, attachmentType, attachmentUrl, java.sql.Timestamp.from(sentAt));
-    if (inserted > 0) jdbc.update("update facebook.messenger_conversation set unread_count=unread_count+1 where id=?", conversationId);
+    if (inserted > 0) {
+      jdbc.update("update facebook.messenger_conversation set unread_count=unread_count+1 where id=?", conversationId);
+      phone.ifPresent(value -> upsertCustomer(eventPageId, value, customerName, sender));
+    }
+  }
+
+  private void upsertCustomer(String eventPageId, String phone, String customerName, String psid) {
+    jdbc.update("""
+        insert into facebook.customer_info(page_id,phone,name,psid)
+        values (?,?,?,?)
+        on conflict (page_id,psid) do update set
+          phone=excluded.phone,name=excluded.name,updated_at=now()
+        """, eventPageId, phone, customerName, psid);
+  }
+
+  private String resolveCustomerName(String eventPageId, String psid) {
+    var fallback = fallbackCustomerName(psid);
+    var existing = jdbc.query("""
+        select customer_name from facebook.messenger_conversation
+        where page_id=? and customer_psid=?
+        """, rs -> rs.next() ? rs.getString(1) : null, eventPageId, psid);
+    if (existing != null && !existing.isBlank() && !existing.equals(fallback)) return existing;
+    if (!configured() || !eventPageId.equals(pageId)) return existing == null || existing.isBlank() ? fallback : existing;
+
+    try {
+      var uri = UriComponentsBuilder.fromUriString("https://graph.facebook.com")
+          .pathSegment(graphVersion, psid)
+          .queryParam("fields", "name").build().encode().toUri();
+      var request = HttpRequest.newBuilder(uri)
+          .header("Authorization", "Bearer " + pageAccessToken).GET().build();
+      var response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+      if (response.statusCode() >= 200 && response.statusCode() < 300) {
+        var name = objectMapper.readTree(response.body()).path("name").asText();
+        if (!name.isBlank()) return name;
+      }
+    } catch (Exception ignored) {
+      // Không làm hỏng webhook nếu Graph API tạm thời không trả được tên khách hàng.
+    }
+    return existing == null || existing.isBlank() ? fallback : existing;
+  }
+
+  private String fallbackCustomerName(String psid) {
+    return "Khách hàng " + psid.substring(Math.max(0, psid.length() - 6));
   }
 
   private String attachmentLabel(JsonNode message) {

@@ -20,6 +20,9 @@ public class WhatsAppModule implements ModuleContributor {
             "users", "", "", 40, "", "", "", List.of("khách hàng", "tin nhắn", "whatsapp")),
         new NavigationItemDescriptor("module.whatsapp.workspace", "business", "module.whatsapp.group", "Facebook Messenger", "navigation.whatsapp",
             "message-circle", "whatsapp", "/business/whatsapp", 41, "", "", "",
-            List.of("facebook", "messenger", "hội thoại", "fanpage", "meta", "inbox")));
+            List.of("facebook", "messenger", "hội thoại", "fanpage", "meta", "inbox")),
+        new NavigationItemDescriptor("module.whatsapp.customers", "business", "module.whatsapp.group", "Khách hàng Messenger", "navigation.messengerCustomers",
+            "phone", "messenger-customers", "/business/messenger-customers", 42, "", "", "",
+            List.of("khách hàng", "số điện thoại", "phone", "psid", "facebook", "messenger")));
   }
 }

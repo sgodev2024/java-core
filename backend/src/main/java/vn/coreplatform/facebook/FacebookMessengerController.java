@@ -25,6 +25,9 @@ public class FacebookMessengerController {
   @PostMapping("/sync")
   FacebookMessengerService.SyncResult sync() { return service.syncFromFacebook(); }
 
+  @GetMapping("/customers")
+  List<FacebookMessengerService.CustomerInfo> customers() { return service.customers(); }
+
   @GetMapping("/conversations/{conversationId}/messages")
   List<FacebookMessengerService.Message> messages(@PathVariable String conversationId) {
     return service.messages(conversationId);
